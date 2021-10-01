@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.vacation.dao.VacDAO">
+	<sql id="sameCondition">
+		FROM VACATION V LEFT OUTER JOIN VAC_HISTORY VC
+		ON     (V.VCATN_CODE = VC.VCATN_CODE) LEFT OUTER JOIN EMPLOYEE E
+        ON     (VC.EMPL_NO = E.EMPL_NO)
+		<trim prefix=" WHERE " prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vcatnCode)">
+					AND V.VCATN_CODE = #{detailSearch.vcatnCode}
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNoArray)">
+					AND VC.EMPL_NO IN
+					<foreach item="emplNo" collection="detailSearch.emplNoArray" open="(" separator=", " close=")">
+						#{emplNo}
+					</foreach>
+				</if>
+			</if>
+		</trim>
+	</sql>
+	<select id="selectTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(DISTINCT V.VCATN_CODE)
+		<include refid="sameCondition"/>
+	</select>
+	<select id="selectVacationList" parameterType="PagingVO" resultType="VacationVO">
+		SELECT B.*
+		FROM (
+		    SELECT A.*, ROWNUM RNUM
+		    FROM (
+		        SELECT V.VCATN_CODE, VCATN_NM
+		        	 , TO_CHAR(VCATN_START, 'YYYY-MM-DD') VCATN_START
+		             , TO_CHAR(VCATN_END, 'YYYY-MM-DD') VCATN_END
+		             , VCATN_USE
+		             , COUNT(VC.EMPL_NO) EMPL_COUNT
+		             , LISTAGG(EMPL_NM, ', ') WITHIN GROUP (ORDER BY VC.EMPL_NO) "empl.emplNm"
+		        <include refid="sameCondition"/>
+		        GROUP BY V.VCATN_CODE, VCATN_NM, VCATN_START
+		               , VCATN_END, VCATN_USE
+		        ORDER BY V.VCATN_CODE
+		        ) A ) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectVacDayList" resultType="EmplVO" parameterType="string">
+		WITH VACDETAIL AS (
+		    SELECT VH.VCATN_CODE
+		    	 , VCATN_AMOUNT
+		    	 , VCATN_AMOUNT_WR
+		    	 , VCATN_REASON
+		         , VCATN_NM
+		         , VCATN_START
+		         , VCATN_END
+		         , EMPL_NO
+		    FROM VAC_HISTORY VH LEFT OUTER JOIN VACATION V
+		    ON (VH.VCATN_CODE = V.VCATN_CODE)
+		)
+		SELECT E.EMPL_NO, EMPL_NM
+		     , E.DEPT_CODE, DEPT_NM "dept.deptNm"
+		     , E.PST_CODE, PST_NM "position.pstNm"
+		     , TO_CHAR(EMPL_ECNY, 'YYYY-MM-DD') EMPL_ECNY
+		     , VD.VCATN_AMOUNT "vacHistory.vcatnAmount"
+		     , VD.VCATN_AMOUNT_WR "vacHistory.vcatnAmountWr"
+		     , VD.VCATN_REASON "vacHistory.vcatnReason"
+		     , VD.VCATN_CODE "vcatn.vcatnCode"
+		     , VD.VCATN_NM "vcatn.vcatnNm"
+		     , TO_CHAR(VD.VCATN_START, 'YYYY-MM-DD') "vcatn.vcatnStart"
+		     , TO_CHAR(VD.VCATN_END, 'YYYY-MM-DD') "vcatn.vcatnEnd"
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+		ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN VACDETAIL VD
+		ON (E.EMPL_NO = VD.EMPL_NO)
+		WHERE VD.VCATN_CODE = #{vcatnCode}
+		ORDER BY E.EMPL_NO
+	</select>
+	<insert id="insertEmplVac" parameterType="VacHistoryVO">
+		MERGE INTO VAC_HISTORY V
+		USING DUAL
+		    ON (V.EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+		        AND V.VCATN_CODE = #{vcatnCode, jdbcType=VARCHAR})
+		WHEN MATCHED THEN
+		    UPDATE SET V.VCATN_AMOUNT = #{vcatnAmount, jdbcType=NUMERIC}
+		    		 , V.VCATN_AMOUNT_WR = #{vcatnAmountWr, jdbcType=NUMERIC}
+		    		 , V.VCATN_REASON = #{vcatnReason, jdbcType=VARCHAR}
+		WHEN NOT MATCHED THEN
+		    INSERT (EMPL_NO, VCATN_CODE, VCATN_AMOUNT, VCATN_AMOUNT_WR, VCATN_REASON)
+		    VALUES (
+		          #{emplNo, jdbcType=NUMERIC}
+		        , #{vcatnCode, jdbcType=VARCHAR}
+		        , #{vcatnAmount, jdbcType=NUMERIC}
+		        , #{vcatnAmountWr, jdbcType=NUMERIC}
+		        , #{vcatnReason, jdbcType=VARCHAR}
+		    )
+	</insert>
+	<delete id="deleteEmplVac" parameterType="map">
+		DELETE FROM VAC_HISTORY
+		WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+		AND VCATN_CODE = #{vcatnCode, jdbcType=VARCHAR}
+	</delete>
+	<select id="selectVacDetail" parameterType="string" resultType="VacationVO">
+		SELECT VCATN_NM
+			 , TO_CHAR(VCATN_START, 'YYYY-MM-DD') VCATN_START 
+			 , TO_CHAR(VCATN_END, 'YYYY-MM-DD') VCATN_END
+		FROM VACATION
+		WHERE VCATN_CODE = #{vcatnCode, jdbcType=VARCHAR}
+	</select>
+	<select id="selectVacCalc" parameterType="VacHistoryVO" resultType="VacHistoryVO">
+		SELECT EMPL_NO
+			 , GETVACATION(EMPL_NO, VCATN_CODE) VCATN_DAY
+		FROM VAC_HISTORY
+		WHERE EMPL_NO IN  
+			<foreach item="emplNo" collection="emplNoArray" open="(" separator=", " close=")">
+				#{emplNo}
+			</foreach>
+		AND VCATN_CODE IN
+			<foreach item="vcatnCode" collection="vcatnCodeArray" open="(" separator=", " close=")">
+				#{vcatnCode}
+			</foreach>
+	</select>
+	<select id="selectEmplVacInfo" parameterType="int" resultType="EmplVO">
+		WITH VACSTUSHALF AS (
+		    SELECT EMPL_NO, COUNT(VACSTUS_HALF_AT) / 2 VACSTUS_HALF
+		    FROM VAC_STATUS VS LEFT OUTER JOIN DRAFT D
+		    ON (VS.DRAFT_NO = D.DRAFT_NO)
+		    WHERE VACSTUS_HALF_AT = 'Yes'
+		   	<![CDATA[
+		    AND DRAFT_PROGRESS <> '반려'
+			]]>
+		    AND VS.DRAFT_NO IS NOT NULL
+		    AND SUBSTR(VCATN_CODE, 1, 4) = TO_CHAR(SYSDATE, 'YYYY')
+		    GROUP BY EMPL_NO 
+		),
+		VACSTUSCODE AS (
+		    SELECT EMPL_NO, NVL(COUNT(VACSTUS_CODE), 0) VACSTUS_CODE
+		    FROM VAC_STATUS
+		    WHERE DRAFT_NO IS NOT NULL
+		    GROUP BY EMPL_NO
+		),
+	    VACRETURN AS (
+	        SELECT EMPL_NO, NVL(COUNT(VACSTUS_CODE), 0) VACSTUS_CODE
+	        FROM VAC_STATUS VS LEFT OUTER JOIN DRAFT D
+	        ON (VS.DRAFT_NO = D.DRAFT_NO)
+	        WHERE DRAFT_PROGRESS = '반려'
+	        GROUP BY EMPL_NO
+	    )
+		SELECT E.EMPL_NO, EMPL_NM
+		     , DEPT_NM "dept.deptNm" 
+		     , DECODE(VH.VCATN_AMOUNT_WR, NULL, VH.VCATN_AMOUNT, VH.VCATN_AMOUNT_WR) "vacHistory.vcatnAmount"
+     		 , TO_CHAR(DECODE(VH.VCATN_AMOUNT_WR, NULL, VH.VCATN_AMOUNT, VH.VCATN_AMOUNT_WR) - (NVL(VSC.VACSTUS_CODE, 0) - NVL(VSH.VACSTUS_HALF, 0) - NVL(VR.VACSTUS_CODE, 0)), 'FM90.0') "vacHistory.vcatnLeft"
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN VAC_HISTORY VH
+		ON (E.EMPL_NO = VH.EMPL_NO) LEFT OUTER JOIN VAC_STATUS VS
+		ON (E.EMPL_NO = VS.EMPL_NO) LEFT OUTER JOIN VACSTUSHALF VSH
+		ON (E.EMPL_NO = VSH.EMPL_NO) LEFT OUTER JOIN DRAFT D
+		ON (VS.DRAFT_NO = D.DRAFT_NO) LEFT OUTER JOIN VACSTUSCODE VSC
+		ON (E.EMPL_NO = VSC.EMPL_NO) LEFT OUTER JOIN VACRETURN VR
+    	ON (E.EMPL_NO = VR.EMPL_NO)
+		WHERE E.EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+		AND SUBSTR(VH.VCATN_CODE, 1, 4) = TO_CHAR(SYSDATE, 'YYYY')
+		GROUP BY (E.EMPL_NO, EMPL_NM, DEPT_NM, VH.VCATN_AMOUNT, VH.VCATN_AMOUNT_WR
+			    , VSH.VACSTUS_HALF, VSC.VACSTUS_CODE, VR.VACSTUS_CODE)
+	</select>
+	<sql id="vacApplyCondition">
+	    FROM (
+	        SELECT MIN(VACSTUS_DE) || ' ~ ' || MAX(VACSTUS_DE) VACSTUS_PERIOD
+	        	 , VACSTUS_CODE
+	             , EMPL_NO, VACSTUS_SUMRY
+	             , VS.VCATN_CODE
+	             , VCATN_NM "vacation.vcatnNm"
+	             , D.DRAFT_NO
+	             , DRAFT_PROGRESS "draft.draftProgress"
+	             , VACSTUS_HALF_AT
+	        FROM VAC_STATUS VS LEFT OUTER JOIN DRAFT D
+	        ON (VS.DRAFT_NO = D.DRAFT_NO) LEFT OUTER JOIN VACATION V
+	        ON (VS.VCATN_CODE = V.VCATN_CODE)
+	        WHERE EMPL_NO = #{emplNo}
+	        <if test="detailSearch != null">
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vacstusStart)">
+	        		AND TO_DATE(SUBSTR(VACSTUS_CODE, 1, 8), 'YY/MM/DD') >= TO_DATE(#{detailSearch.vacstusStart}, 'YYYY-MM-DD')
+	        	</if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vacstusEnd)">
+	        		<![CDATA[
+	        		AND TO_DATE(SUBSTR(VACSTUS_CODE, 1, 8), 'YY/MM/DD') <= TO_DATE(#{detailSearch.vacstusEnd}, 'YYYY-MM-DD')
+	        		]]>
+	        	</if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vacstusSumry)">
+	        		AND INSTR(VACSTUS_SUMRY, #{detailSearch.vacstusSumry}) > 0
+	        	</if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vcatnCode)">
+	        		AND VS.VCATN_CODE = #{detailSearch.vcatnCode}
+	        	</if>
+	        </if>
+	        GROUP BY (EMPL_NO, VACSTUS_SUMRY
+	        		, VACSTUS_CODE
+	                , VS.VCATN_CODE, VCATN_NM
+	                , D.DRAFT_NO
+	                , DRAFT_PROGRESS
+	                , VACSTUS_HALF_AT)
+	        ORDER BY VACSTUS_CODE 
+	        ) A
+	</sql>
+	<select id="selectVacApplyTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(*)
+		<include refid="vacApplyCondition"/>
+	</select>
+	<select id="selectVacApplyList" parameterType="PagingVO" resultType="VacStatusVO">
+		SELECT B.*
+		FROM (
+		    SELECT ROWNUM RNUM, A.*
+		    <include refid="vacApplyCondition"/>
+		        ) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectVacApplyDetail" parameterType="VacStatusVO" resultType="VacStatusVO">
+		SELECT VACSTUS_CODE
+		     , TO_CHAR(MIN(VACSTUS_DE), 'YYYY-MM-DD') VACSTUS_START
+		     , TO_CHAR(MAX(VACSTUS_DE), 'YYYY-MM-DD') VACSTUS_END
+		     , EMPL_NO, VACSTUS_SUMRY, VCATN_CODE, VS.DRAFT_NO, VACSTUS_HALF_AT
+		     , DRAFT_PROGRESS
+		     , LISTAGG (TO_CHAR(VACSTUS_DE, 'YYYYMMDD'), ',') WITHIN GROUP (ORDER BY VACSTUS_DE) VACSTUS_DE
+		     , COUNT(*) VACSTUS_COUNT
+		FROM VAC_STATUS VS LEFT OUTER JOIN DRAFT D
+		ON (VS.DRAFT_NO = D.DRAFT_NO)
+		WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+		AND VACSTUS_CODE = #{vacstusCode, jdbcType=VARCHAR}
+		GROUP BY (
+		      VACSTUS_CODE, EMPL_NO, VACSTUS_SUMRY, VCATN_CODE
+		    , VS.DRAFT_NO, VACSTUS_HALF_AT, DRAFT_PROGRESS)
+	</select>
+	<select id="selectWeekday" parameterType="com.eg.vo.AutoAllowVO" resultType="com.eg.vo.AutoAllowVO">
+		WITH TIME AS
+		(
+		SELECT '20'||DATE_CODE date_code,
+		TO_CHAR(TO_DATE(DATE_YMD),'DY') DAY
+		FROM DATE_TABLE
+		WHERE DATE_YMD BETWEEN #{workTime} AND #{finishTime})
+		SELECT TIME.*
+		FROM TIME
+		WHERE TIME.DAY NOT IN('일','토')
+	</select>
+	<select id="selectNextVacstusCode" resultType="string">
+		SELECT
+		CASE WHEN COUNT(*) = 0
+		        THEN TO_CHAR(SYSDATE, 'YY/MM/DD-') || '1'
+		     ELSE TO_CHAR(SYSDATE, 'YY/MM/DD-') || TO_CHAR(MAX(TO_NUMBER(SUBSTR(VACSTUS_CODE, INSTR(VACSTUS_CODE, '-')+1)))+1)
+		     END
+		FROM VAC_STATUS
+		WHERE SUBSTR(VACSTUS_CODE, 1, 8) = TO_CHAR(SYSDATE, 'YY/MM/DD')
+	</select>
+	<insert id="insertVacStatus" parameterType="VacStatusVO">
+		INSERT INTO VAC_STATUS (VACSTUS_CODE, VACSTUS_DE, EMPL_NO, VACSTUS_SUMRY
+		    , VCATN_CODE, VACSTUS_HALF_AT)
+		VALUES (
+			  #{vacstusCode, jdbcType=VARCHAR}
+		    , TO_DATE(#{vacstusDe, jdbcType=DATE}, 'YYYYMMDD')
+		    , #{emplNo, jdbcType=NUMERIC}
+		    , #{vacstusSumry, jdbcType=VARCHAR}
+		    , TO_CHAR(SYSDATE, 'YYYY') || '01'
+		    , #{vacstusHalfAt, jdbcType=VARCHAR}
+		)
+	</insert>
+	<delete id="deleteVacStatus" parameterType="VacStatusVO">
+		DELETE FROM VAC_STATUS
+		WHERE VACSTUS_CODE = #{vacstusCode, jdbcType=VARCHAR}
+		AND EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+	</delete>
+	<sql id="sameConditionVacStus">
+		FROM VAC_STATUS VS LEFT OUTER JOIN EMPLOYEE E
+        ON (VS.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN VACATION V
+        ON (VS.VCATN_CODE = V.VCATN_CODE) LEFT OUTER JOIN DRAFT D
+        ON (VS.DRAFT_NO = D.DRAFT_NO)
+        GROUP BY (VACSTUS_CODE, VS.EMPL_NO, EMPL_NM
+             , VS.VCATN_CODE, VCATN_NM, VACSTUS_SUMRY
+             , VS.DRAFT_NO, DRAFT_PROGRESS, VACSTUS_HALF_AT)
+        HAVING VS.DRAFT_NO IS NOT NULL
+        <if test="detailSearch != null">
+        	<if test="detailSearch.draft != null">
+		        <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.draft.draftProgress)">
+		        	AND DRAFT_PROGRESS = #{detailSearch.draft.draftProgress}
+		        </if>
+        	</if>
+        </if>
+	</sql>
+	<select id="selectVacStusTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM (
+		    SELECT COUNT(*)
+		    <include refid="sameConditionVacStus"/>
+		)
+	</select>
+	<select id="selectVacStusList" parameterType="PagingVO" resultType="VacStatusVO">
+		SELECT B.*
+		FROM (
+		    SELECT ROWNUM RNUM, A.*
+		    FROM (
+		        SELECT VACSTUS_CODE
+		             , MIN(VACSTUS_DE) || ' ~ ' || MAX(VACSTUS_DE) VACSTUS_PERIOD
+		             , VS.EMPL_NO
+		             , EMPL_NM "empl.emplNm"
+		             , VS.VCATN_CODE
+		             , VCATN_NM "vacation.vcatnNm"
+		             , TO_CHAR(COUNT(VACSTUS_DE) - DECODE(VACSTUS_HALF_AT, 'Yes', 0.5, 0), 'FM0.0') VACSTUS_COUNT
+		             , VACSTUS_SUMRY
+		             , VS.DRAFT_NO
+		             , DRAFT_PROGRESS "draft.draftProgress"
+		        <include refid="sameConditionVacStus"/>
+		        ORDER BY VACSTUS_CODE DESC
+		        ) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<update id="updateDraftNo" parameterType="map">
+		UPDATE VAC_STATUS
+		SET DRAFT_NO = #{draftNo, jdbcType=NUMERIC}
+		WHERE VACSTUS_CODE = #{code, jdbcType=VARCHAR}
+	</update>
+	<select id="selectVacStatus" parameterType="PagingVO" resultType="VacStatusVO">
+		SELECT VACSTUS_CODE
+		     , MIN(TO_CHAR(VACSTUS_DE, 'YYYY-MM-DD')) || ' ~ ' || MAX(TO_CHAR(VACSTUS_DE, 'YYYY-MM-DD')) VACSTUS_PERIOD
+		     , VS.EMPL_NO, EMPL_NM "empl.emplNm"
+		     , E.DEPT_CODE, DEPT_NM "empl.dept.deptNm"
+		     , E.PST_CODE, PST_NM "empl.position.pstNm"
+		     , VS.VCATN_CODE, VCATN_NM "vacation.vcatnNm"
+		     , COUNT(DISTINCT VACSTUS_CODE) VACSTUS_COUNT
+		     , VACSTUS_SUMRY
+		FROM VAC_STATUS VS LEFT OUTER JOIN EMPLOYEE E
+		ON (VS.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+		ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN VACATION V
+		ON (VS.VCATN_CODE = V.VCATN_CODE) LEFT OUTER JOIN DRAFT DF
+		ON (VS.DRAFT_NO = DF.DRAFT_NO)
+		WHERE DRAFT_PROGRESS  = '결재완료'
+		GROUP BY (VACSTUS_CODE, VS.EMPL_NO
+		        , EMPL_NM, E.DEPT_CODE
+		        , DEPT_NM, E.PST_CODE, PST_NM
+		        , VS.VCATN_CODE, VCATN_NM
+		        , VACSTUS_SUMRY)
+	</select>
+</mapper>

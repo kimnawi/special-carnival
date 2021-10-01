@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.sal.dao.SalDAO">
+	<sql id="sameCondition">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.piNm)">
+					AND INSTR(PI_NM, #{detailSearch.piNm}) > 0
+				</if>
+			</if>
+		</trim>
+	</sql>
+	<select id="selectEmplNo" resultType="com.eg.vo.EmplVO">
+		SELECT A.EMPL_NO
+		FROM
+		(SELECT A.EMPL_NO , DECODE(B.EMPL_RETIRE, NULL, '재직', '퇴사') RETIRE
+		FROM EMPLOYEE A LEFT OUTER JOIN RETIRE B ON(A.EMPL_NO = B.EMPL_NO) ) A
+		WHERE A.RETIRE NOT IN ('퇴사')
+		AND EMPL_NO != ('9999999')
+	</select>
+	
+	<insert id="insertSalary" parameterType="com.eg.vo.PayInfoVO">
+		INSERT INTO PAY_INFO
+		(PI_STDATE,PI_TYPE,PI_BONUSAMOUNT, PI_TARGETDO, 
+		PI_PAYDAY, PI_NM, PI_TARGETDT, PI_WRITER, PI_EMPL)
+		VALUES(
+		#{piStdate, jdbcType=VARCHAR},
+		#{piType, jdbcType=VARCHAR},
+		#{piBonusamount, jdbcType=NUMERIC},
+		#{piTargetdo, jdbcType=DATE},
+		#{piPayday, jdbcType=DATE},
+		#{piNm, jdbcType=VARCHAR},
+		#{piTargetdt, jdbcType=DATE},
+		#{piWriter, jdbcType=VARCHAR},
+		#{piEmpl, jdbcType=NUMERIC}
+		)
+		
+	</insert>
+
+	<select id="countPayInfo" parameterType="String" resultType="int">
+		SELECT (COUNT(DISTINCT(PI_STDATE))+1) CNT
+		FROM PAY_INFO
+		WHERE PI_STDATE LIKE #{stdate}||'%'
+	</select>
+	
+	<select id="countSalList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(DISTINCT(PI_STDATE))
+		FROM PAY_INFO
+		<include refid="sameCondition" />
+	</select>
+	
+	<select id="SalList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.PayInfoVO">
+		SELECT B.*
+		FROM(
+		SELECT A.*,ROWNUM AS RNUM
+		FROM
+		(
+		SELECT DISTINCT(PI_STDATE), PI_TYPE, PI_BONUSAMOUNT, TO_CHAR(PI_TARGETDO,'YYYY-MM-DD') PI_TARGETDO, 
+		TO_CHAR(PI_TARGETDT,'YYYY-MM-DD') PI_TARGETDT, TO_CHAR(PI_PAYDAY,'YYYY-MM-DD') PI_PAYDAY, PI_NM, PI_WRITER, count(PI_EMPL) EMPL,PI_SUM
+		FROM PAY_INFO
+		<include refid="sameCondition" />
+		GROUP BY  (PI_STDATE, PI_TYPE, PI_BONUSAMOUNT, PI_TARGETDO, PI_TARGETDT,
+		PI_PAYDAY, PI_NM, PI_WRITER,PI_SUM)
+		ORDER BY PI_STDATE DESC
+		) A ) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		
+	</select>
+	<select id="selectSal" parameterType="String" resultType="com.eg.vo.PayInfoVO">
+		SELECT DISTINCT(PI_STDATE), PI_NM,PI_TYPE, TO_CHAR(PI_PAYDAY,'YYYY-MM-DD') PI_PAYDAY, TO_CHAR(PI_TARGETDO,'YYYY-MM-DD') PI_TARGETDO,
+		TO_CHAR(PI_TARGETDT,'YYYY-MM-DD') PI_TARGETDT,PI_BONUSAMOUNT
+		FROM PAY_INFO
+		WHERE PI_STDATE = #{stDate}
+	</select>
+	
+	<select id="selectEmplUp" parameterType="String" resultType="com.eg.vo.PayInfoVO">
+	SELECT PI_EMPL
+	FROM PAY_INFO
+	WHERE PI_STDATE = #{stDate}
+	</select>
+	
+	<update id="updateSalary" parameterType="com.eg.vo.PayInfoVO">
+	UPDATE PAY_INFO SET
+	PI_TYPE = #{piType},PI_BONUSAMOUNT = #{piBonusamount, jdbcType=NUMERIC}, 
+	PI_TARGETDO = #{piTargetdo},PI_PAYDAY = #{piPayday}, 
+	PI_NM = #{piNm}, PI_TARGETDT = #{piTargetdt}, PI_WRITER = #{piWriter}
+	WHERE PI_EMPL = #{piEmpl} 
+	AND PI_STDATE = #{piStdate}
+	</update>
+	
+	<select id="workConfirmEmpl" parameterType="String" resultType="com.eg.vo.EmplVO">
+		SELECT E.EMPL_NO, E.EMPL_NM, E.EMPL_ADGPER, D.DEPT_NM "dept.deptNm", P.PST_NM "position.pstNm", E.ADG_CODE,
+        PI.PIH_AL "piHistory.pihAl", PI.PIH_DE "piHistory.pihDe",PI.PIH_PAY "piHistory.pihPay"
+		FROM PAY_INFO P INNER JOIN EMPLOYEE E ON (P.PI_EMPL = E.EMPL_NO)
+		left outer JOIN DEPARTMENT D ON (E.DEPT_CODE = D.DEPT_CODE)
+		left outer JOIN POSITION P ON (E.PST_CODE = P.PST_CODE)
+        INNER JOIN PI_HISTORY PI ON (PI.PIH_EMPL = E.EMPL_NO)
+        WHERE PI_STDATE = #{stDate}
+        AND PI.PIH_STDATE = #{stDate}
+		ORDER BY E.EMPL_NO
+	</select>
+	
+	<select id="workConfirmAl" resultType="com.eg.vo.AllowanceVO">
+		SELECT *
+		FROM  ALLOWANCE
+		WHERE AL_PROVIDE IN ('변동(시간)','변동(일)')
+	</select>
+	
+	<select id="checkDay" parameterType="String" resultType="com.eg.vo.PayInfoVO">
+	SELECT DISTINCT(TO_CHAR(PI_TARGETDO,'YYYY-MM-DD')) PI_TARGETDO, TO_CHAR(PI_TARGETDT,'YYYY-MM-DD') PI_TARGETDT
+	FROM PAY_INFO
+	WHERE PI_STDATE = #{stDate}
+	</select>
+	
+	<select id="workList" parameterType="com.eg.vo.PayInfoVO" resultType="com.eg.vo.WorkVO">
+		SELECT EMPL_NO, AL_CODE, WORK_HOUR
+		FROM WORK
+		WHERE WORK_DATE BETWEEN #{piTargetdo} AND #{piTargetdt}
+	</select>
+	
+	<insert id="createWorkConfirm" parameterType="com.eg.vo.WorkHistoryVO">
+		MERGE INTO WORK_HISTORY A
+		USING DUAL
+		ON(A.PIH_STDATE = #{pihStdate} AND A.PIH_EMPL = #{pihEmpl} AND A.WH_ALCODE = #{whAlcode})
+		WHEN MATCHED THEN
+		UPDATE SET
+		WH_HOUR = #{whHour}
+		WHEN NOT MATCHED THEN
+		INSERT(PIH_STDATE,PIH_EMPL,WH_ALCODE,WH_HOUR)
+		VALUES(
+			#{pihStdate},
+			#{pihEmpl},
+			#{whAlcode},
+			#{whHour}
+		)
+	</insert>
+	
+	<select id="workHistory" parameterType="String" resultType="com.eg.vo.WorkHistoryVO">
+		SELECT PIH_STDATE, PIH_EMPL, WH_ALCODE, WH_HOUR
+		FROM WORK_HISTORY
+		WHERE PIH_STDATE = #{stDate}
+	</select>
+	
+	<select id="alList" resultType="com.eg.vo.AllowanceVO">
+		SELECT *
+		FROM ALLOWANCE
+	</select>
+	
+	<select id="deList" resultType="com.eg.vo.DeductionVO">
+		SELECT *
+		FROM DEDUCTION
+	</select>
+	
+	<select id="alGroup" parameterType="String" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT A.ADG_CODE,A.ADG_NM, B.AL_CODE, B.ALG_AMOUNT
+		FROM AD_GROUP A INNER JOIN AL_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+		WHERE A.ADG_CODE = #{adgCode}
+	</select>
+	
+	<select id="deGroup" parameterType="String" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT A.ADG_CODE, A.ADG_NM, B.DE_CODE,B.ADG_AMOUNT
+		FROM AD_GROUP A INNER JOIN DE_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+		WHERE A.ADG_CODE = #{adgCode}
+	</select>
+	
+	<select id="fixAl" parameterType="int" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT AL_CODE, EMPL_NO, FA_AMOUNT
+		FROM FIX_AL
+		WHERE EMPL_NO = #{emplNo}
+		ORDER BY AL_CODE
+	</select>
+	
+	<select id="monthDe" parameterType="int" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT DE_CODE, EMPL_NO, MD_AMOUNT
+		FROM MONTH_DE
+		WHERE EMPL_NO = #{emplNo}
+		ORDER BY DE_CODE
+	</select>
+	
+	<select id="work" parameterType="com.eg.vo.WorkHistoryVO" resultType="com.eg.vo.WorkHistoryVO">
+		SELECT PIH_STDATE, PIH_EMPL, WH_ALCODE, WH_HOUR
+		FROM WORK_HISTORY
+		WHERE PIH_STDATE = #{pihStdate}
+		AND PIH_EMPL = #{pihEmpl}
+	</select>
+	
+	<insert id="createAlHistory" parameterType="com.eg.vo.AlHistoryVO">
+		MERGE INTO AL_HISTORY A
+		USING DUAL
+		ON(A.ALH_CODE = #{alhCode} AND A.PIH_STDATE = #{pihStdate} AND A.PIH_EMPL = #{pihEmpl})
+		WHEN MATCHED THEN
+		UPDATE SET
+		ALH_AMOUNT = #{alhAmount}
+		WHEN NOT MATCHED THEN
+		INSERT(ALH_CODE, PIH_STDATE, PIH_EMPL, ALH_AMOUNT)
+		VALUES(
+		#{alhCode},
+		#{pihStdate},
+		#{pihEmpl},
+		#{alhAmount}
+		)
+	</insert>
+	
+	<insert id="createDeHistory" parameterType="com.eg.vo.DeHistoryVO">
+		MERGE INTO DE_HISTORY A
+		USING DUAL
+		ON(A.DEH_CODE = #{dehCode} AND A.PIH_STDATE = #{pihStdate} AND A.PIH_EMPL = #{pihEmpl})
+		WHEN MATCHED THEN
+		UPDATE SET
+		DEH_AMOUNT = #{dehAmount}
+		WHEN NOT MATCHED THEN
+		INSERT(DEH_CODE, PIH_STDATE, PIH_EMPL, DEH_AMOUNT)
+		VALUES(
+		#{dehCode},
+		#{pihStdate},
+		#{pihEmpl},
+		#{dehAmount}
+		)
+	</insert>
+	
+	<select id="Tax" parameterType="Integer" resultType="int">
+	SELECT TAX FROM SIMPLE_TAX
+	<![CDATA[
+	WHERE #{money} < TAXLESS
+	AND #{money} >= TAXMORE
+	]]>
+	</select>
+	
+	<update id="updatePiHistory" parameterType="com.eg.vo.PiHistoryVO">
+	UPDATE PI_HISTORY
+	SET 
+	PIH_AL = #{pihAl},
+	PIH_DE = #{pihDe},
+	PIH_PAY = #{pihPay}
+	WHERE PIH_STDATE = #{pihStdate}
+	AND PIH_EMPL = #{pihEmpl}
+	</update>
+	
+	<select id="selectAlHistory" parameterType="com.eg.vo.AlHistoryVO" resultType="com.eg.vo.AlHistoryVO">
+		SELECT ALH_CODE, ALH_AMOUNT,PIH_EMPL
+		FROM AL_HISTORY
+		WHERE PIH_STDATE = #{pihStdate}
+		AND PIH_EMPL = #{pihEmpl}
+		ORDER BY PIH_EMPL, ALH_CODE
+	</select>
+	<select id="selectDeHistory" parameterType="com.eg.vo.AlHistoryVO" resultType="com.eg.vo.DeHistoryVO">
+		SELECT DEH_CODE, DEH_AMOUNT,PIH_EMPL
+		FROM DE_HISTORY
+		WHERE PIH_STDATE = #{pihStdate}
+		AND PIH_EMPL = #{pihEmpl}
+		ORDER BY PIH_EMPL, DEH_CODE
+	</select>
+	
+	<update id="updateTotal" parameterType="com.eg.vo.PayInfoVO">
+		UPDATE PAY_INFO
+		SET
+		PI_SUM = #{piSum}
+		WHERE PI_STDATE = #{piStdate}
+	</update>
+</mapper>

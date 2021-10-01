@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.group.schedule.dao.ScheDAO">
+	<sql id="sameCondition">
+    FROM SCH_MANAGER S LEFT OUTER JOIN SM_EMPL M ON(S.SM_NO = M.SM_NO)
+                       LEFT OUTER JOIN EMPLOYEE E ON(M.EMPL_NO = E.EMPL_NO)
+                       LEFT OUTER JOIN EMPLALL EA ON (S.SM_NO = EA.SM_NO)
+    	<if test="detailSearch != null">
+		    WHERE M.EMPL_NO IN (#{detailSearch.empl.emplNo, jdbcType=NUMERIC})
+   			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.smStart)">
+					AND S.SM_START >= TO_DATE(#{detailSearch.smStart}, 'YY/MM/DD')
+			</if>
+    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.smEnd)">
+    				<![CDATA[
+					AND S.SM_START <= TO_DATE(#{detailSearch.smEnd}, 'YY/MM/DD') + 1
+					]]>
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.smTitle)">
+					AND INSTR(S.SM_TITLE, #{detailSearch.smTitle}) > 0
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.smLocation)">
+					AND INSTR(S.SM_LOCATION, #{detailSearch.smLocation}) > 0
+			</if>
+    	</if>
+    </sql>
+	<select id="selectTotalRecord" parameterType="com.eg.vo.PagingVO" resultType="int">
+		WITH EMPLALL AS(
+			    SELECT S.SM_NO
+			         , LISTAGG(E.EMPL_NM, ', ') WITHIN GROUP(ORDER BY E.EMPL_NM) EMPL_NM
+			    FROM SCH_MANAGER S LEFT OUTER JOIN SM_EMPL M
+			    ON(S.SM_NO = M.SM_NO) LEFT OUTER JOIN EMPLOYEE E
+			    ON(M.EMPL_NO = E.EMPL_NO)
+			    GROUP BY S.SM_NO
+			)
+		SELECT COUNT(DISTINCT(S.SM_NO))
+		<include refid="sameCondition"/>
+	</select>
+	<select id="selectScheList" resultType="com.eg.vo.ScheVO" parameterType="com.eg.vo.PagingVO">
+		WITH EMPLALL AS(
+		    SELECT S.SM_NO
+		         , LISTAGG(E.EMPL_NM, ', ') WITHIN GROUP(ORDER BY E.EMPL_NM) EMPL_NM
+		    FROM SCH_MANAGER S LEFT OUTER JOIN SM_EMPL M
+		    ON(S.SM_NO = M.SM_NO) LEFT OUTER JOIN EMPLOYEE E
+		    ON(M.EMPL_NO = E.EMPL_NO)
+		    GROUP BY S.SM_NO
+		)
+		SELECT B.*
+		FROM (
+		    SELECT A.*, ROWNUM RNUM
+		    FROM (
+		        SELECT S.SM_NO , TO_CHAR(SM_START, 'YYYY-MM-DD') || ' (' || TO_CHAR(TO_DATE(SM_START), 'dy') || ')' SM_START
+		             , TO_CHAR(SM_START, 'HH24:MI') SM_START_TM
+		             , CASE WHEN TO_CHAR(SM_START, 'YYMMDD') = TO_CHAR(SM_END, 'YYMMDD')
+		                        THEN TO_CHAR(SM_START, 'YYYY-MM-DD') || 'T' || TO_CHAR(SM_START, 'HH24:MI:SS')
+		                    ELSE TO_CHAR(SM_START, 'YYYY-MM-DD')
+		                    END AS SM_START_TM_CAL 
+		             , TO_CHAR(SM_END, 'HH24:MI') SM_END
+		             , CASE WHEN TO_CHAR(SM_START, 'YYMMDD') = TO_CHAR(SM_END, 'YYMMDD')
+		                        THEN TO_CHAR(SM_END, 'YYYY-MM-DD') || 'T' || TO_CHAR(SM_END, 'HH24:MI:SS')
+		                    ELSE TO_CHAR(SM_END+1, 'YYYY-MM-DD')
+		                    END AS SM_END_TM_CAL
+		             , SM_TITLE, SM_LOCATION
+		             , EA.EMPL_NM "empl.emplNm"
+				<include refid="sameCondition"/>
+		        GROUP BY S.SM_NO, SM_START, SM_END, SM_TITLE, SM_LOCATION, EA.EMPL_NM
+		) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectScheDetail" resultType="com.eg.vo.ScheVO">
+		SELECT S.SM_NO , TO_CHAR(SM_START, 'YYYY-MM-DD') || ' (' || TO_CHAR(TO_DATE(SM_START), 'dy') || ')' SM_START
+		             , TO_CHAR(SM_START, 'HH24:MI') SM_START_TM
+		             , TO_CHAR(SM_END, 'HH24:MI') SM_END
+		             , LISTAGG(E.EMPL_NM, ', ') WITHIN GROUP(ORDER BY E.EMPL_NM) "empl.emplNm"
+		             , SM_TITLE, SM_LOCATION
+		FROM SCH_MANAGER S LEFT OUTER JOIN SM_EMPL M ON(S.SM_NO = M.SM_NO)
+        LEFT OUTER JOIN EMPLOYEE E ON(M.EMPL_NO = E.EMPL_NO)
+		WHERE S.SM_NO = #{smNo, jdbcType=VARCHAR}
+		GROUP BY S.SM_NO, SM_START, SM_END, SM_TITLE, SM_LOCATION
+	</select>
+	<select id="selectScheMain" parameterType="int" resultType="ScheVO">
+		SELECT S.SM_NO , TO_CHAR(SM_START, 'YYYY-MM-DD') || ' (' || TO_CHAR(TO_DATE(SM_START), 'dy') || ')' SM_START
+		     , TO_CHAR(SM_START, 'HH24:MI') SM_START_TM
+		     , CASE WHEN TO_CHAR(SM_START, 'YYMMDD') = TO_CHAR(SM_END, 'YYMMDD')
+		                THEN TO_CHAR(SM_START, 'YYYY-MM-DD') || 'T' || TO_CHAR(SM_START, 'HH24:MI:SS')
+		            ELSE TO_CHAR(SM_START, 'YYYY-MM-DD')
+		            END AS SM_START_TM_CAL 
+		     , TO_CHAR(SM_END, 'HH24:MI') SM_END
+		     , CASE WHEN TO_CHAR(SM_START, 'YYMMDD') = TO_CHAR(SM_END, 'YYMMDD')
+		                THEN TO_CHAR(SM_END, 'YYYY-MM-DD') || 'T' || TO_CHAR(SM_END, 'HH24:MI:SS')
+		            ELSE TO_CHAR(SM_END+1, 'YYYY-MM-DD')
+		            END AS SM_END_TM_CAL
+		     , SM_TITLE, SM_LOCATION
+		FROM SCH_MANAGER S LEFT OUTER JOIN SM_EMPL M ON(S.SM_NO = M.SM_NO)
+		       LEFT OUTER JOIN EMPLOYEE E ON(M.EMPL_NO = E.EMPL_NO)
+		WHERE M.EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+		GROUP BY S.SM_NO, SM_START, SM_END, SM_TITLE, SM_LOCATION
+	</select>
+</mapper>

@@ -1,0 +1,139 @@
+@charset "UTF-8";
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300&display=swap');
+*{
+	font-family: 'Noto Sans KR', sans-serif;
+	font-size: 18px;
+}
+main{
+	width: 1520px;
+}
+table{
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0 10px;
+}
+#emplInfo{
+	margin-top: 35px;
+	margin-bottom: 10px;
+	background: #FCFCFE;
+}
+#emplInfo td, #emplInfo th{
+	padding: 10px 15px;
+}
+#emplInfo th{
+	text-align: center;
+}
+#top{
+	position: absolute;
+	top: 120px;
+	width: 83%;
+	z-index: 1;
+}
+#title{
+	font-size: 20px;
+	margin: 10px 30px 20px 30px;
+	margin-bottom: 20px;
+	font-weight: bold;
+}
+hr{
+	margin: 5px 0;
+}
+#top hr{
+	color: #9FA9D8;
+	width: 1620px;
+	position: absolute;
+}
+#bottom{
+	width: 100%;
+	position: fixed;
+	bottom: 75px;
+}
+#insert {
+	margin-left: 10px;
+}
+.saveBtn, #insert, #searchBtn {
+    display: inline-block;
+    text-decoration: none;
+    color: white;
+    padding: 1px 12px;
+    background: #3A4CA8;
+    border-radius: 3px;
+}
+#list-table td, #list-table th{
+	border: 1px solid #F8F8F8;
+	height: 37px;
+	text-align: center;
+	padding: 3px 10px;
+}
+#list-table th{
+	background: #FCFCFE;
+}
+#list-table tr td:nth-child(3){
+	text-align: inherit;
+}
+#list-table tfoot td{
+	border: none;
+}
+#resn{
+	width: 700px;
+}
+.selectDetail{
+	color: #4472C4;
+	cursor: pointer;
+}
+.selectDetail:hover{
+	text-decoration: underline;
+}
+#list-table a{
+	color: #4472C4;
+	cursor: pointer;
+}
+#list-table a:active {
+	color: #4472C4;
+	font-weight: bold;
+}
+#searchUI table{
+	margin-left: 10px;
+}
+#searchUI th{
+	width: 100px;
+	text-align: center;
+}
+#searchUI .btnArea{
+	text-align: right;
+}
+#searchUI input[type=text]:not(.nm), #searchUI input[type=date]{
+	width: 200px;
+}
+#searchUI .nm{
+	width: 168px;
+}
+.btnArea input{
+	margin: 0 3px;
+}
+#searchUI th, #searchUI td{
+	padding: 5px;
+}
+.searchImg {
+	position: relative;
+    width: 25px;
+    right: 3px;
+    top: -1px;
+    margin: 0px;
+    padding: 0px;
+    z-index: 1;
+}
+.small-search {
+    position: relative;
+    display: inline;
+    top: -3px;
+    left:1px;
+    width: 33px;
+    height: 33px;
+    text-align: center;
+    vertical-align: middle;
+    z-index: 1;
+    bottom: 3px;
+    border: 1px solid black;
+    border-radius: 2px;
+}

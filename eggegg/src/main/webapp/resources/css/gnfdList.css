@@ -1,0 +1,71 @@
+@charset "UTF-8";
+.gnfdStdrde{
+	width: 200px;
+}
+.emplNm{
+	width: 155px;
+}
+.gnfdDe{
+	width: 180px;
+}
+.ctNm, .draftProgress{
+	width: 160px;
+}
+#searchUI{
+	margin-left: 10px;
+}
+#searchUI th{
+	width: 150px;
+}
+#searchUI input[type=text], #searchUI input[type=date], #searchUI select{
+	width: 200px;
+	height: 33px;
+}
+#searchUI input[type=text]{
+	position: relative;
+	top: 2px;
+}
+#list-table a{
+	color: #4472C4;
+	cursor: pointer;
+}
+#list-table a:hover{
+	text-decoration: underline;
+}
+.btnArea input{
+	margin: 0 3px;
+}
+.searchImg {
+	position: relative;
+    width: 25px;
+    right: 3px;
+    top: -1px;
+    margin: 0px;
+    padding: 0px;
+    z-index: 1;
+}
+.small-search {
+    position: relative;
+    top: -2px;
+    left:1px;
+    display: inline;
+    width: 33px;
+    height: 33px;
+    text-align: center;
+    vertical-align: middle;
+    z-index: 1;
+    bottom: 3px;
+    border: 1px solid black;
+    border-radius: 2px;
+}
+#list-table .draftForm{
+	color: #4472C4;
+	cursor: pointer;
+}
+#list-table .draftForm:hover{
+	text-decoration: none;
+}
+#list-table .draftForm:active {
+	color: #4472C4;
+	font-weight: bold;
+}

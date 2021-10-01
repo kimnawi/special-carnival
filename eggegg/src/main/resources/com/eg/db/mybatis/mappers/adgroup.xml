@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.adgroup.dao.AdGroupDAO">
+	<sql id="sameCondition">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.adgNm)">
+					AND INSTR(ADG_NM, #{detailSearch.adgNm}) > 0
+				</if>
+			</if>
+		</trim>
+	</sql>
+
+	<select id="groupList" resultType="com.eg.vo.AdGroupVO" parameterType="com.eg.vo.PagingVO">
+		WITH ADGROUP AS(
+			SELECT ADG_CODE, ADG_NM
+			FROM AD_GROUP
+			<include refid="sameCondition" />
+			ORDER BY ADG_CODE
+		)
+		SELECT A.*
+		FROM(
+			SELECT ROWNUM RNUM, ADGROUP.*
+			FROM ADGROUP
+		) A  
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+
+	<select id="countGroupList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM AD_GROUP
+		<include refid="sameCondition" />
+		ORDER BY ADG_CODE 
+	</select>
+	
+	<select id="selectGroupList" resultType="com.eg.vo.AdGroupVO">
+		SELECT ADG_CODE, ADG_NM
+		FROM AD_GROUP
+		ORDER BY ADG_CODE
+	</select>
+	
+	<select id="selectNextCode" resultType="string">
+		SELECT 
+			CASE WHEN COUNT(*) = 0
+    		THEN '00001' 
+    	ELSE
+     		LPAD(MAX(ADG_CODE)+1,5,'0')
+     		END AS ADG_CODE
+		FROM AD_GROUP
+	</select>
+	
+	<select id="alList" resultType="com.eg.vo.AllowanceVO">
+		SELECT AL_CODE, AL_NM, AL_PROVIDE
+		FROM ALLOWANCE
+		WHERE AL_USE = 'Yes'
+		AND AL_NM IS NOT NULL
+	</select>
+	
+	<select id="deList" resultType="com.eg.vo.DeductionVO">
+		SELECT DE_CODE, DE_NM
+		FROM DEDUCTION
+		WHERE DE_CODE NOT IN('01','02','03','04','05','06')
+		AND DE_USE = 'Yes'
+		AND DE_NM IS NOT NULL 
+	</select>
+	
+	<insert id="insertAdGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		INSERT INTO AD_GROUP(ADG_CODE, ADG_NM)
+		VALUES(
+		#{adgCode,jdbcType=VARCHAR},
+		#{adgNm, jdbcType=VARCHAR}
+		)
+	</insert>
+	
+	<insert id="insertAlGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		INSERT ALL
+		<foreach collection="alGroup" item="al">
+			INTO AL_GROUP
+			(
+				ADG_CODE, AL_CODE, ALG_AMOUNT
+			)
+			VALUES
+			(
+				#{al.adgCode,jdbcType=VARCHAR},
+				#{al.alCode,jdbcType=VARCHAR},
+				#{al.algAmount,jdbcType=NUMERIC}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	<insert id="insertDeGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		INSERT ALL
+		<foreach collection="deGroup" item="de">
+			INTO DE_GROUP
+			(
+				ADG_CODE, DE_CODE, ADG_AMOUNT
+			)
+			VALUES
+			(
+				#{de.adgCode,jdbcType=VARCHAR},
+				#{de.deCode,jdbcType=VARCHAR},
+				#{de.adgAmount,jdbcType=VARCHAR}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	
+	
+	<resultMap type="com.eg.vo.AdGroupAllVO" id="alGroup" autoMapping="true">
+		<id property="adgCode" column="ADG_CODE"/>
+		<collection property="alGroup" ofType="com.eg.vo.AdGroupAllVO" autoMapping="true">
+			<id property="adgCode" column="ADG_CODE"/>
+		</collection>
+	</resultMap>
+	<resultMap type="com.eg.vo.AdGroupAllVO" id="deGroup" autoMapping="true">
+		<id property="adgCode" column="ADG_CODE"/>
+		<collection property="deGroup" ofType="com.eg.vo.AdGroupAllVO" autoMapping="true">
+			<id property="adgCode" column="ADG_CODE"/>
+		</collection>
+	</resultMap>
+		
+	<select id="selectAlGroup" parameterType="String" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT B.AL_CODE, A.AL_NM, A.AL_PROVIDE, B.ALG_AMOUNT, B.ADG_CODE, C.ADG_NM
+		FROM ALLOWANCE A INNER JOIN AL_GROUP B ON(A.AL_CODE = B.AL_CODE)
+		RIGHT OUTER JOIN AD_GROUP C ON (C.ADG_CODE = B.ADG_CODE)
+		WHERE C.ADG_CODE = #{code}
+	</select>
+	
+	<select id="selectDeGroup" parameterType="String" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT B.DE_CODE, A.DE_NM, B.ADG_AMOUNT, B.ADG_CODE, C.ADG_NM
+		FROM DEDUCTION A INNER JOIN DE_GROUP B ON (A.DE_CODE = B.DE_CODE)
+		RIGHT OUTER JOIN AD_GROUP C ON (C.ADG_CODE = B.ADG_CODE)
+		WHERE C.ADG_CODE = #{code}
+	</select>
+	
+	<select id="countAl" parameterType="String" resultType="int">
+		SELECT COUNT(*)
+		FROM AD_GROUP A INNER JOIN AL_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+		WHERE A.ADG_CODE = #{code}
+	</select>
+	
+	<select id="countDe" parameterType="String" resultType="int">
+		SELECT COUNT(*)
+		FROM AD_GROUP A INNER JOIN DE_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+		WHERE A.ADG_CODE = #{code}
+	</select>
+	
+	<select id="selectAdGroup" parameterType="String" resultType="com.eg.vo.AdGroupAllVO">
+		SELECT ADG_CODE, ADG_NM
+		FROM AD_GROUP
+		WHERE ADG_CODE = #{adgCode}
+	</select>
+	
+	<delete id="deleteGroup" parameterType="String">
+		DELETE FROM AD_GROUP
+		WHERE ADG_CODE = #{adgCode}
+	</delete>
+	
+	<delete id="deleteAlGroup" parameterType="String">
+		DELETE FROM AL_GROUP
+		WHERE ADG_CODE = #{adgCode}
+	</delete>
+	
+	<delete id="deleteDeGroup" parameterType="String">
+		DELETE FROM DE_GROUP
+		WHERE ADG_CODE = #{adgCode}	
+	</delete>
+	
+	<update id="updateempl" parameterType="String">
+		UPDATE EMPLOYEE SET
+		ADG_CODE = '',
+		EMPL_ADGPER =''
+		WHERE EMPL_NO IN(
+		SELECT EMPL_NO
+		FROM EMPLOYEE
+		WHERE ADG_CODE = #{adgCode})
+	</update>
+	
+	<update id="updateAdGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		UPDATE AD_GROUP
+		SET ADG_NM = #{adgNm,jdbcType=VARCHAR}
+		WHERE ADG_CODE = #{adgCode}
+	</update>
+
+	<update id="updateAlGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		MERGE INTO AL_GROUP A
+		USING DUAL
+		ON(A.ADG_CODE=#{adgCode} AND A.AL_CODE =#{alCode})
+		WHEN MATCHED THEN
+		UPDATE SET
+		ALG_AMOUNT = #{algAmount,jdbcType=NUMERIC}
+		WHEN NOT MATCHED THEN
+		INSERT(AL_CODE,ADG_CODE,ALG_AMOUNT)
+		VALUES(
+			#{alCode,jdbcType=VARCHAR},
+			#{adgCode,jdbcType=VARCHAR},
+			#{algAmount, jdbcType=NUMERIC}
+		) 
+	</update>	
+	<update id="updateDeGroup" parameterType="com.eg.vo.AdGroupAllVO">
+		MERGE INTO DE_GROUP A
+		USING DUAL
+		ON(A.ADG_CODE=#{adgCode} AND A.DE_CODE =#{deCode})
+		WHEN MATCHED THEN
+		UPDATE SET
+		ADG_AMOUNT = #{adgAmount,jdbcType=NUMERIC}
+		WHEN NOT MATCHED THEN
+		INSERT(DE_CODE,ADG_CODE,ADG_AMOUNT)
+		VALUES(
+			#{deCode,jdbcType=VARCHAR},
+			#{adgCode,jdbcType=VARCHAR},
+			#{adgAmount, jdbcType=NUMERIC}
+		) 
+	</update>
+	<select id="selectGroup" parameterType="String" resultType="com.eg.vo.EmplVO">
+		SELECT A.EMPL_NO, A.EMPL_NM	, DEPT_NM "dept.deptNm",
+		 A.EMPL_ADGPER, A.ADG_CODE, C.ADG_NM
+		 FROM EMPLOYEE A LEFT OUTER JOIN DEPARTMENT B ON (A.DEPT_CODE = B.DEPT_CODE)
+		 LEFT OUTER JOIN AD_GROUP C ON(A.ADG_CODE = C.ADG_CODE)
+		 WHERE A.ADG_CODE = #{adgCode}
+	</select>
+	
+	<update id="updateEmplAdg" parameterType="com.eg.vo.EmplVO">
+		UPDATE EMPLOYEE
+		SET ADG_CODE = #{adgCode,jdbcType=VARCHAR},
+		EMPL_ADGPER = #{emplAdgper,jdbcType=VARCHAR}
+		WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+	</update>
+	
+	<update id="deleteEmplAdg" parameterType="com.eg.vo.EmplVO">
+		UPDATE EMPLOYEE
+		SET ADG_CODE = '',
+		EMPL_ADGPER = ''
+		WHERE EMPL_NO = #{emplDel, jdbcType=NUMERIC}
+	</update>
+</mapper>

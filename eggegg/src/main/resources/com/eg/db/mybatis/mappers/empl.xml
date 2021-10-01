@@ -1,0 +1,469 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.empl.dao.EmplDAO">
+	<select id="selectEmplById" parameterType="int" resultType="com.eg.vo.EmplVO">
+		SELECT E.EMPL_NO, E.EMPL_NM, E.EMPL_PW, E.EMPL_AUTHORITY, R.EMPL_RETIRE as "retire.emplRetire", P.PST_CODE as "position.pstCode", P.PST_NM as "position.pstNm"
+		FROM EMPLOYEE E LEFT OUTER JOIN RETIRE R ON (R.EMPL_NO = E.EMPL_NO)
+			LEFT OUTER JOIN POSITION P ON (E.PST_CODE = P.PST_CODE)
+		WHERE E.EMPL_NO = ${emplNo}
+	</select>
+	<update id="updateEmplPassword" parameterType="EmplVO">
+		UPDATE EMPLOYEE
+		SET EMPL_PW = #{emplPw, jdbcType=VARCHAR}
+		WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+	</update>
+   <sql id="sameCondition">
+      FROM EMPLOYEE E LEFT OUTER JOIN SALARYBANK S ON (S.EMPL_NO = E.EMPL_NO)
+      				  LEFT OUTER JOIN RETIRE R ON (R.EMPL_NO = E.EMPL_NO)
+      				  LEFT OUTER JOIN DEPARTMENT D ON (E.DEPT_CODE = D.DEPT_CODE)
+      				  LEFT OUTER JOIN POSITION P ON (E.PST_CODE = P.PST_CODE)
+      				  LEFT OUTER JOIN PRJ PRJ ON (E.EMPL_NO = PRJ.EMPL_NO)
+         WHERE (EMPL_AUTHORITY NOT IN ('ROLE_ADMIN') OR EMPL_AUTHORITY IS NULL)
+         <if test="detailSearch != null">
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNo)">
+               AND INSTR(E.EMPL_NO, #{detailSearch.emplNo}) > 0
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNm)">
+               AND INSTR(EMPL_NM, #{detailSearch.emplNm}) > 0
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptCode)">
+               AND E.DEPT_CODE = #{detailSearch.deptCode}
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplEcnyStart)">
+               AND EMPL_ECNY >= TO_DATE(#{detailSearch.emplEcnyStart}, 'YY/MM/DD')
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplEcnyEnd)">
+               <![CDATA[
+               AND EMPL_ECNY <= TO_DATE(#{detailSearch.emplEcnyEnd}, 'YY/MM/DD')
+               ]]>
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.tenureAtt)">
+               AND EMPL_RETIRE IS NULL
+            </if>
+            <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.tenureAtt)">
+               <if test="detailSearch.tenureAtt eq 'RETIRE'">
+                  AND EMPL_RETIRE IS NOT NULL
+               </if>
+            </if>
+         </if>
+   </sql>
+   <select id="selectTotalRecord" parameterType="PagingVO" resultType="int">
+      WITH PRJ AS (
+          SELECT EMPL_NO, PH.PRJ_CODE, PRJ_NM
+          FROM PRJ_HISTORY PH LEFT OUTER JOIN PROJECT P
+          ON (PH.PRJ_CODE = P.PRJ_CODE)
+      )
+      SELECT COUNT(*)
+      <include refid="sameCondition"/>
+   </select>
+   <select id="selectEmplList" resultType="EmplVO" parameterType="PagingVO">
+      WITH PRJ AS (
+          SELECT EMPL_NO, PH.PRJ_CODE, PRJ_NM
+          FROM PRJ_HISTORY PH LEFT OUTER JOIN PROJECT P
+          ON (PH.PRJ_CODE = P.PRJ_CODE)
+      ),
+      EMPLALL AS (
+          SELECT DISTINCT E.EMPL_NO, EMPL_NM, DEPT_NM "dept.deptNm", PST_NM "position.pstNm"
+              , TO_CHAR(EMPL_ECNY, 'YYYY-MM-DD') EMPL_ECNY
+              , SLRY_ACNUTNO "salarybank.slryAcnutno"
+              , EMPL_EMAIL
+              , EMPL_RETIRE "retire.emplRetire"
+          <include refid="sameCondition"/>
+          ORDER BY E.EMPL_NO DESC
+         )
+      SELECT A.*
+      FROM (SELECT ROWNUM RNUM, EMPLALL.*
+          FROM EMPLALL) A
+      WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+   </select>
+   <select id="selectEmplFancyVO" resultType="EmplFancyWrapperVO" parameterType="PagingVO">
+      SELECT DISTINCT E.EMPL_NO as "adaptee.emplNo", EMPL_NM as "adaptee.emplNm"
+      				, E.DEPT_CODE as "adaptee.deptCode", DEPT_NM "adaptee.dept.deptNm", PST_NM "adaptee.position.pstNm"
+      FROM EMPLOYEE E 
+      				  LEFT OUTER JOIN RETIRE R ON (R.EMPL_NO = E.EMPL_NO)
+      				  LEFT OUTER JOIN DEPARTMENT D ON (E.DEPT_CODE = D.DEPT_CODE)
+      				  LEFT OUTER JOIN POSITION P ON (E.PST_CODE = P.PST_CODE)
+      WHERE E.DEPT_CODE = #{detailSearch.adaptee.deptCode}
+      ORDER BY E.EMPL_NO DESC
+   </select>
+   <select id="selectNextEmplNo" resultType="int">
+      SELECT
+      CASE WHEN COUNT(*) = 0
+               THEN TO_NUMBER(TO_CHAR(SYSDATE, 'YYYY') || '001')
+           ELSE
+               TO_NUMBER(TO_CHAR(SYSDATE, 'YYYY') || LPAD(MAX(SUBSTR(EMPL_NO, 5, 7)) + 1, 3, '0'))
+           END AS EMPL_NO
+      FROM EMPLOYEE
+      WHERE SUBSTR(EMPL_NO, 1, 4) = TO_CHAR(SYSDATE, 'YYYY')
+   </select>
+   <insert id="insertEmpl" parameterType="EmplVO">
+      <selectKey order="BEFORE" resultType="int" keyProperty="emplNo">
+         SELECT
+         CASE WHEN COUNT(*) = 0
+                  THEN TO_NUMBER(TO_CHAR(SYSDATE, 'YYYY') || '001')
+              ELSE
+                  TO_NUMBER(TO_CHAR(SYSDATE, 'YYYY') || LPAD(MAX(SUBSTR(EMPL_NO, 5, 7)) + 1, 3, '0'))
+              END AS EMPL_NO
+         FROM EMPLOYEE
+         WHERE SUBSTR(EMPL_NO, 1, 4) = TO_CHAR(SYSDATE, 'YYYY')
+      </selectKey>
+      INSERT INTO EMPLOYEE (EMPL_NO, EMPL_NM, EMPL_FORNM, EMPL_ENGNM
+                          , EMPL_HSH_AT, EMPL_TEL, EMPL_MOBILE, EMPL_PASSPORT
+                          , EMPL_EMAIL, EMPL_ECNY, EMPL_ADRES, EMPL_DET_ADRES
+                          , EMPL_SUMRY, EMPL_ZIP, EMPL_PW
+                          , EMPL_FRGNR_AT, COMMON_NO
+                          , EMPL_ENTRANCE
+                          , ADG_CODE, EMPL_ADGPER)
+      VALUES (#{emplNo}
+           , #{emplNm, jdbcType=VARCHAR}
+           , #{emplFornm, jdbcType=VARCHAR}
+           , #{emplEngnm, jdbcType=VARCHAR}
+           , #{emplHshAt, jdbcType=VARCHAR}
+           , #{emplTel, jdbcType=VARCHAR}
+           , #{emplMobile, jdbcType=VARCHAR}
+           , #{emplPassport, jdbcType=VARCHAR}
+           , #{emplEmail, jdbcType=VARCHAR}
+           , TO_DATE(#{emplEcny, jdbcType=DATE}, 'YYYY-MM-DD')
+           , #{emplAdres, jdbcType=VARCHAR}
+           , #{emplDetAdres, jdbcType=VARCHAR}
+           , #{emplSumry, jdbcType=VARCHAR}
+           , #{emplZip, jdbcType=VARCHAR}
+           , #{emplPw, jdbcType=VARCHAR}
+           , #{emplFrgnrAt, jdbcType=VARCHAR}
+           , #{commonNo, jdbcType=NUMERIC}
+           , #{emplEntrance, jdbcType=VARCHAR}
+           , #{adgCode, jdbcType=VARCHAR}
+           , #{emplAdgper, jdbcType=NUMERIC}
+      )
+   </insert>
+   <insert id="insertSalaryBank" parameterType="EmplVO">
+      MERGE INTO SALARYBANK S
+      USING DUAL
+          ON (S.EMPL_NO = #{emplNo, jdbcType=NUMERIC})
+      WHEN MATCHED THEN
+          UPDATE SET S.SLRY_ACNUTNO = #{salarybank.slryAcnutno, jdbcType=VARCHAR}
+                   , S.SLRY_DPSTR = #{salarybank.slryDpstr, jdbcType=VARCHAR}
+                   , S.BANK_CODE = #{salarybank.bankCode, jdbcType=CHAR}
+      WHEN NOT MATCHED THEN
+          INSERT (SLRY_ACNUTNO, EMPL_NO, SLRY_DPSTR, BANK_CODE)
+          VALUES (
+                #{salarybank.slryAcnutno, jdbcType=VARCHAR}
+              , #{emplNo, jdbcType=NUMERIC}
+              , #{salarybank.slryDpstr, jdbcType=VARCHAR}
+              , #{salarybank.bankCode, jdbcType=CHAR}
+          )
+   </insert>
+   <select id="selectEmplAcademic" resultType="AcademicVO" parameterType="int">
+      SELECT TO_CHAR(AB_ADMISSION, 'YYYY-MM-DD') AB_ADMISSION
+           , TO_CHAR(AB_GRADUATION, 'YYYY-MM-DD') AB_GRADUATION
+           , AB_SCHOOL
+           , AB_MAJOR, AB_GRDTYPE
+           , AB_EMPL, EMPL_NM "empl.emplNm"
+           , AB_TYPE, CT_NM "acaType.ctNm"
+      FROM ACADEMIC_BACKGROUND LEFT OUTER JOIN EMPLOYEE
+      ON (AB_EMPL = EMPL_NO) LEFT OUTER JOIN COMMON_TABLE
+      ON (AB_TYPE = CT_TABLE)
+      WHERE AB_EMPL = #{abEmpl, jdbcType=NUMERIC}
+   </select>
+   <insert id="insertAcadBack" parameterType="EmplVO">
+      MERGE INTO ACADEMIC_BACKGROUND A
+          USING DUAL
+          ON (A.AB_EMPL = #{emplNo, jdbcType=NUMERIC})
+          WHEN MATCHED THEN
+              UPDATE SET A.AB_ADMISSION = TO_DATE(#{acad.abAdmission, jdbcType=DATE}, 'YYYY-MM-DD')
+                       , A.AB_GRADUATION = TO_DATE(#{acad.abGraduation, jdbcType=DATE}, 'YYYY-MM-DD')
+                       , A.AB_SCHOOL = #{acad.abSchool, jdbcType=VARCHAR}
+                       , A.AB_MAJOR = #{acad.abMajor, jdbcType=VARCHAR}
+                       , A.AB_GRDTYPE = #{acad.abGrdtype, jdbcType=VARCHAR}
+                       , A.AB_TYPE = #{acad.abType, jdbcType=VARCHAR}
+          WHEN NOT MATCHED THEN
+              INSERT   (AB_ADMISSION, AB_GRADUATION
+                      , AB_SCHOOL, AB_MAJOR, AB_GRDTYPE
+                      , AB_EMPL, AB_TYPE)
+              VALUES  (
+                    TO_DATE(#{acad.abAdmission, jdbcType=DATE}, 'YYYY-MM-DD')
+                  , TO_DATE(#{acad.abGraduation, jdbcType=DATE}, 'YYYY-MM-DD')
+                  , #{acad.abSchool, jdbcType=VARCHAR}
+                  , #{acad.abMajor, jdbcType=VARCHAR}
+                  , #{acad.abGrdtype, jdbcType=VARCHAR}
+                  , #{acad.abEmpl, jdbcType=NUMERIC}
+                  , #{acad.abType, jdbcType=VARCHAR}
+              )
+   </insert>
+   <select id="selectEmplQualificate" resultType="QualificateVO" parameterType="int">
+      SELECT TO_CHAR(QC_EXPIRE, 'YYYY-MM-DD') QC_EXPIRE
+           , TO_CHAR(QC_DATE, 'YYYY-MM-DD') QC_DATE
+           , QC_EMPL, COMMON_NO, QC_NM, QC_SCORE
+      FROM QUALIFICATE
+      WHERE QC_EMPL = #{qcEmpl, jdbcType=NUMERIC}
+   </select>
+   <delete id="deleteQual" parameterType="int">
+      DELETE FROM QUALIFICATE
+      WHERE QC_EMPL = #{emplNo, jdbcType=NUMERIC}
+   </delete>
+   <insert id="insertQual" parameterType="QualificateVO">
+      MERGE INTO QUALIFICATE Q
+       USING DUAL
+       ON (Q.QC_EMPL = #{qcEmpl, jdbcType=NUMERIC} AND Q.QC_NM = #{qcNm, jdbcType=VARCHAR})
+       WHEN MATCHED THEN
+           UPDATE SET Q.QC_EXPIRE = TO_DATE(#{qcExpire, jdbcType=VARCHAR}, 'YYYY-MM-DD')
+                    , Q.QC_DATE = TO_DATE(#{qcDate, jdbcType=VARCHAR}, 'YYYY-MM-DD')
+                    , Q.QC_SCORE = #{qcScore, jdbcType=VARCHAR}
+       WHEN NOT MATCHED THEN
+           INSERT (QC_EXPIRE, QC_DATE, QC_EMPL
+                 , QC_NM, QC_SCORE)
+           VALUES (
+                 TO_DATE(#{qcExpire, jdbcType=VARCHAR}, 'YYYY-MM-DD')
+               , TO_DATE(#{qcDate, jdbcType=VARCHAR}, 'YYYY-MM-DD')
+               , #{qcEmpl, jdbcType=NUMERIC}
+               , #{qcNm, jdbcType=VARCHAR}
+               , #{qcScore, jdbcType=VARCHAR}
+           )
+   </insert>
+   <insert id="insertVacation" parameterType="int">
+   		INSERT INTO VAC_HISTORY(EMPL_NO, VCATN_CODE)
+   		SELECT EMPL_NO, VCATN_CODE
+		FROM EMPLOYEE LEFT OUTER JOIN VACATION
+		ON 1=1
+		<![CDATA[
+		WHERE TO_CHAR(EMPL_ECNY, 'YYYY') <= SUBSTR(VCATN_CODE, 1, 4)
+		]]>
+		AND EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+   </insert>
+   <select id="abTypeList" resultType="AbTypeVO">
+      SELECT CT_TABLE, CT_NM
+      FROM COMMON_TABLE
+      WHERE SUBSTR(CT_TABLE, 1, 1) = 'E'
+      AND CT_USE = 'Y'
+   </select>
+   <select id="selectEmplDetail" parameterType="int" resultType="EmplVO">
+      WITH PRJ AS(
+          SELECT E.EMPL_NO, P.PRJ_CODE, PRJ_NM, PRJ_PERIOD
+          FROM EMPLOYEE E LEFT OUTER JOIN PRJ_HISTORY PH
+          ON (E.EMPL_NO = PH.EMPL_NO) LEFT OUTER JOIN PROJECT P
+          ON (PH.PRJ_CODE = P.PRJ_CODE)
+      ),
+      RET AS(
+          SELECT E.EMPL_NO, TO_CHAR(EMPL_RETIRE, 'YYYY-MM-DD') EMPL_RETIRE, EMPL_RET_RESN
+          FROM EMPLOYEE E LEFT OUTER JOIN RETIRE R
+          ON (E.EMPL_NO = R.EMPL_NO)
+      ),
+      SLRBANK AS(
+          SELECT EMPL_NO, SLRY_ACNUTNO, SLRY_DPSTR, S.BANK_CODE, BANK_NM
+          FROM SALARYBANK S LEFT OUTER JOIN BANK B
+          ON (S.BANK_CODE = B.BANK_CODE)
+      )
+      SELECT E.EMPL_NO, EMPL_NM, EMPL_FORNM, EMPL_ENGNM
+           , EMPL_PW, EMPL_HSH_AT, E.DEPT_CODE, DEPT_NM "dept.deptNm"
+           , E.PST_CODE, PST_NM "position.pstNm", EMPL_AUTHORITY
+           , EMPL_TEL, EMPL_MOBILE, EMPL_PASSPORT, EMPL_EMAIL
+           , TO_CHAR(EMPL_ECNY, 'YYYY-MM-DD') EMPL_ECNY
+           , E.EMPL_ENTRANCE
+           , CT_NM "entrance.ctNm"
+           , R.EMPL_RETIRE "retire.emplRetire"
+           , R.EMPL_RET_RESN "retire.emplRetResn"
+           , S.BANK_CODE "salarybank.bankCode"
+           , S.BANK_NM "salarybank.bank.bankNm"
+           , S.SLRY_ACNUTNO "salarybank.slryAcnutno"
+           , S.SLRY_DPSTR "salarybank.slryDpstr"
+           , EMPL_ZIP, EMPL_ADRES, EMPL_DET_ADRES
+           , EMPL_SUMRY
+           , LISTAGG(PRJ.PRJ_NM, ', ') WITHIN GROUP (ORDER BY TO_DATE(SUBSTR(PRJ.PRJ_PERIOD, -10), 'YYYY-MM-DD') DESC) "project.prjNm"
+           , E.COMMON_NO
+		   , TO_CHAR(COMMON_PATH) "file.commonPath"
+      FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+      ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN PRJ
+      ON (E.EMPL_NO = PRJ.EMPL_NO) LEFT OUTER JOIN POSITION P
+      ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN COMMON_TABLE CT
+      ON (E.EMPL_ENTRANCE = CT.CT_TABLE) LEFT OUTER JOIN RET R
+      ON (E.EMPL_NO = R.EMPL_NO) LEFT OUTER JOIN SLRBANK S
+      ON (E.EMPL_NO = S.EMPL_NO) LEFT OUTER JOIN COMMON_FILE CF
+	  ON (E.COMMON_NO = CF.COMMON_NO)
+      WHERE E.EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+      GROUP BY (E.EMPL_NO, EMPL_NM, EMPL_FORNM, EMPL_ENGNM, EMPL_PW, 
+            EMPL_HSH_AT, DEPT_NM, PST_NM, EMPL_AUTHORITY, EMPL_TEL, 
+            EMPL_MOBILE, EMPL_PASSPORT, EMPL_EMAIL, EMPL_ECNY, CT_NM, 
+            R.EMPL_RETIRE, R.EMPL_RET_RESN, S.BANK_CODE, S.BANK_NM,
+            S.SLRY_ACNUTNO, S.SLRY_DPSTR, 
+            EMPL_ZIP, EMPL_ADRES, EMPL_DET_ADRES, EMPL_SUMRY, E.EMPL_ENTRANCE,
+            E.DEPT_CODE, E.PST_CODE, E.COMMON_NO, TO_CHAR(COMMON_PATH))
+   </select>
+   <update id="updateEmpl" parameterType="EmplVO">
+      UPDATE EMPLOYEE
+      SET    EMPL_NM = #{emplNm, jdbcType=VARCHAR}
+           , EMPL_FORNM = #{emplFornm, jdbcType=VARCHAR}
+           , EMPL_ENGNM = #{emplEngnm, jdbcType=VARCHAR}
+           , EMPL_HSH_AT = #{emplHshAt, jdbcType=VARCHAR}
+           , EMPL_TEL = #{emplTel, jdbcType=VARCHAR}
+           , EMPL_MOBILE = #{emplMobile, jdbcType=VARCHAR}
+           , EMPL_PASSPORT = #{emplPassport, jdbcType=VARCHAR}
+           , EMPL_EMAIL = #{emplEmail, jdbcType=VARCHAR}
+           , EMPL_ECNY = TO_DATE(#{emplEcny, jdbcType=DATE}, 'YYYY-MM-DD')
+           , EMPL_ADRES = #{emplAdres, jdbcType=VARCHAR}
+           , EMPL_DET_ADRES = #{emplDetAdres, jdbcType=VARCHAR}
+           , EMPL_SUMRY = #{emplSumry, jdbcType=VARCHAR}
+           , EMPL_ZIP = #{emplZip, jdbcType=VARCHAR}
+           , EMPL_FRGNR_AT = #{emplFrgnrAt, jdbcType=VARCHAR}
+           , COMMON_NO = #{commonNo, jdbcType=NUMERIC}
+           , EMPL_ENTRANCE = #{emplEntrance, jdbcType=VARCHAR}
+      WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+   </update>
+   <insert id="insertRetire" parameterType="EmplVO">
+      MERGE INTO RETIRE R
+      USING DUAL
+          ON (R.EMPL_NO = #{emplNo, jdbcType=NUMERIC})
+      WHEN MATCHED THEN
+          UPDATE SET R.EMPL_RETIRE = #{retire.emplRetire, jdbcType=VARCHAR}
+                   , R.EMPL_RET_RESN = #{retire.emplRetResn, jdbcType=VARCHAR}
+      WHEN NOT MATCHED THEN
+          INSERT (EMPL_RETIRE, EMPL_RET_RESN, EMPL_NO)
+          VALUES (#{retire.emplRetire, jdbcType=VARCHAR}
+                , #{retire.emplRetResn, jdbcType=VARCHAR}
+                , #{emplNo, jdbcType=NUMERIC}
+          )
+   </insert>
+   <select id="selectEmplExcelList" resultType="EmplVO">
+      WITH PRJ AS (
+          SELECT EMPL_NO, PH.PRJ_CODE, PRJ_NM
+          FROM PRJ_HISTORY PH LEFT OUTER JOIN PROJECT P
+          ON (PH.PRJ_CODE = P.PRJ_CODE)
+      ),
+      EMPLALL AS (
+          SELECT DISTINCT E.EMPL_NO, EMPL_NM, DEPT_NM "dept.deptNm", PST_NM "position.pstNm"
+              , TO_CHAR(EMPL_ECNY, 'YYYY/MM/DD') EMPL_ECNY
+              , SLRY_ACNUTNO "salarybank.slryAcnutno", EMPL_EMAIL
+              , DECODE (EMPL_RETIRE, NULL, '재직', '퇴사') "retire.emplRetire"
+          FROM EMPLOYEE E LEFT OUTER JOIN SALARYBANK S
+          ON (S.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN RETIRE R
+          ON (R.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN DEPARTMENT D
+          ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+          ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN PRJ PRJ
+          ON (E.EMPL_NO = PRJ.EMPL_NO)
+          WHERE (EMPL_AUTHORITY NOT IN ('ROLE_ADMIN') OR EMPL_AUTHORITY IS NULL)
+          ORDER BY E.EMPL_NO
+          )
+      SELECT A.*
+      FROM (SELECT ROWNUM RNUM, EMPLALL.*
+          FROM EMPLALL) A
+   </select>
+   <update id="increasePWCNT" parameterType="com.eg.vo.EmplVO">
+      UPDATE EMPL_PASS SET EMPL_PWCNT=EMPL_PWCNT+1
+      WHERE EMPL_NO=#{emplNo}
+      <selectKey keyColumn="EMPL_PWCNT" keyProperty="emplPwcnt" resultType="integer" order="AFTER">
+         SELECT EMPL_PWCNT
+         FROM EMPL_PASS
+         WHERE EMPL_NO=#{emplNo}
+      </selectKey>
+   </update>
+   
+   <update id="initializePWCNT" parameterType="Integer">
+      UPDATE EMPL_PASS SET EMPL_PWCNT=0
+      WHERE EMPL_NO=#{emplNo}
+   </update>
+   
+   <select id="selectEmplPWCNT" parameterType="int" resultType="Integer">
+      SELECT EMPL_PWCNT
+      FROM EMPL_PASS
+      WHERE EMPL_NO = ${emplNo}
+   </select>
+   
+   <select id="selectEmplNo" parameterType="com.eg.vo.EmplVO" resultType="com.eg.vo.EmplVO">
+      SELECT E.EMPL_NO, E.EMPL_NM, D.DEPT_NM, R.DESCRIPTION
+      FROM EMPLOYEE E 
+      INNER JOIN DEPARTMENT D ON E.DEPT_CODE = D.DEPT_CODE
+      INNER JOIN ROLES R ON E.EMPL_AUTHORITY = R.AUTHORITY
+      WHERE E.EMPL_NM=#{emplNm}
+      AND D.DEPT_NM=#{dept.deptNm}
+      AND R.DESCRIPTION=#{roles.description}
+   </select>
+   
+   <select id="selectAlGroup" parameterType="Integer" resultType="com.eg.vo.AdGroupAllVO">
+      SELECT C.AL_CODE, D.AL_NM, (C.ALG_AMOUNT * (A.EMPL_ADGPER / 100)) FA_AMOUNT
+      FROM EMPLOYEE A LEFT OUTER JOIN AD_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+      LEFT OUTER JOIN AL_GROUP C ON (C.ADG_CODE = B.ADG_CODE)
+      INNER JOIN ALLOWANCE D ON (D.AL_CODE = C.AL_CODE)
+      WHERE A.EMPL_NO = #{emplNo}
+      AND D.AL_USE = 'Yes'
+      ORDER BY D.AL_SEQ
+   </select>
+   
+   <select id="selectDeGroup" parameterType="Integer" resultType="com.eg.vo.AdGroupAllVO">
+      SELECT C.DE_CODE, D.DE_NM, (C.ADG_AMOUNT * (A.EMPL_ADGPER / 100 )) MD_AMOUNT
+      FROM EMPLOYEE A LEFT OUTER JOIN AD_GROUP B ON(A.ADG_CODE = B.ADG_CODE)
+      LEFT OUTER JOIN DE_GROUP C ON (C.ADG_CODE = B.ADG_CODE)
+      INNER JOIN DEDUCTION D ON (D.DE_CODE = C.DE_CODE)
+      WHERE A.EMPL_NO = #{emplNo}
+      AND D.DE_USE = 'Yes'
+      ORDER BY D.DE_SEQ   
+   </select>
+   
+   <select id="selectFixAl" parameterType="Integer" resultType="com.eg.vo.AdGroupAllVO">
+      SELECT A.EMPL_NO, A.AL_CODE, B.AL_NM, B.AL_SEQ, B.AL_PROVIDE, A.FA_AMOUNT,B.TF_CODE
+      FROM FIX_AL A RIGHT OUTER JOIN ALLOWANCE B ON(A.AL_CODE = B.AL_CODE)
+      WHERE A.EMPL_NO = #{emplNo}
+      AND B.AL_NM IS NOT NULL
+      AND B.AL_USE = 'Yes'
+      ORDER BY A.AL_CODE
+   </select>
+   
+   <select id="selectMonthDe" parameterType="Integer" resultType="com.eg.vo.AdGroupAllVO">
+      SELECT B.EMPL_NO, A.DE_CODE, A.DE_NM, A.DE_SEQ, B.MD_AMOUNT
+      FROM DEDUCTION A LEFT OUTER JOIN MONTH_DE B ON(A.DE_CODE = B.DE_CODE)
+      WHERE B.EMPL_NO = #{emplNo}
+      AND A.DE_NM IS NOT NULL
+      AND A.DE_USE = 'Yes'
+      AND A.DE_FIX = 'No'
+      ORDER BY B.DE_CODE
+   </select>
+   
+   <update id="updateFixAl" parameterType="com.eg.vo.AdGroupAllVO">
+      UPDATE FIX_AL SET
+      FA_AMOUNT = #{faAmount}
+      WHERE EMPL_NO = #{emplNo}
+      AND AL_CODE = #{alCode}
+   </update>
+   
+   <update id="updateMonthDe" parameterType="com.eg.vo.AdGroupAllVO">
+      UPDATE MONTH_DE SET
+      MD_AMOUNT = #{mdAmount}
+      WHERE EMPL_NO = #{emplNo}
+      AND DE_CODE = #{deCode}
+   </update>
+   
+   <update id="updateSignImagePath" parameterType="com.eg.vo.EmplVO">
+      UPDATE EMPLOYEE
+      SET EMPL_SIGNIMAGE = #{emplSignimage,jdbcType=VARCHAR}
+      WHERE EMPL_NO = #{emplNo}
+   </update>
+   <select id="selectSignImagePath" parameterType="int">
+      SELECT EMPL_SIGNIMAGE
+	  FROM EMPLOYEE
+  	  WHERE EMPL_NO = #{emplNo}
+   </select>
+   
+   <select id="selectEmplCard" parameterType="int" resultType="EmplVO">
+		SELECT EMPL_NO, EMPL_NM
+		     , E.DEPT_CODE, DEPT_NM "dept.deptNm"
+		     , EMPL_EMAIL
+		     , EMPL_ADRES || ' ' || EMPL_DET_ADRES EMPL_DET_ADRES
+		     , EMPL_MOBILE
+		     , E.PST_CODE, PST_NM "position.pstNm"
+		     , COMMON_PATH "file.commonPath"
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+		ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN COMMON_FILE CF
+		ON (E.COMMON_NO = CF.COMMON_NO)
+		WHERE E.EMPL_NO = #{emplNo, jdbcType=VARCHAR}
+   </select>
+   <update id="updateEmplDraftAfter" parameterType="OfficialOrderVO">
+   		UPDATE EMPLOYEE
+		SET   DEPT_CODE = #{deptAnm, jdbcType=VARCHAR}
+		    , PST_CODE = #{gnfdAposition, jdbcType=VARCHAR}
+		WHERE EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+   </update>
+   <update id="updateEmplDraftReturn" parameterType="int">
+   		UPDATE DRAFT
+   		SET DRAFT_PROGRESS = '반려'
+   		WHERE DRAFT_NO = #{draftNo, jdbcType=NUMERIC}
+   </update>
+</mapper>

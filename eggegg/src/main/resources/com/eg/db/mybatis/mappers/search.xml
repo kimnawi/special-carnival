@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.search.dao.SearchDAO">
+	<sql id="sameConditionDept">
+	    FROM DEPARTMENT
+	    <trim prefix=" WHERE " prefixOverrides="AND">
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptNm)">
+				AND INSTR(DEPT_NM, #{detailSearch.deptNm}) > 0
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.deptUse)">
+				AND DEPT_USE = 'Yes'
+			</if>
+	    </trim>
+	</sql>
+	<select id="selectDeptTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="sameConditionDept"/>
+	</select>
+	<select id="selectDeptList" resultType="DeptVO" parameterType="PagingVO">
+		SELECT A.*
+		FROM(
+		    SELECT ROWNUM RNUM, DEPT_CODE, DEPT_NM, DEPT_USE
+		    <include refid="sameConditionDept"/>
+		    ) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<sql id="sameConditionPrj">
+		FROM PROJECT
+		<trim prefix=" WHERE " prefixOverrides="AND">
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.prjNm)">
+				AND INSTR(PRJ_NM, #{detailSearch.prjNm}) > 0
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.prjUse)">
+				AND PRJ_USE = 'Yes'
+			</if>
+		</trim>
+	</sql>
+	<select id="selectProjectTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="sameConditionPrj"/>
+	</select>
+	<select id="selectProjectList" resultType="ProjectVO" parameterType="PagingVO">
+		SELECT A.*
+		FROM(
+		    SELECT ROWNUM RNUM, PRJ_CODE, PRJ_NM, PRJ_USE
+		    <include refid="sameConditionPrj"/>
+		    ) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectEntranceList" resultType="EntranceVO">
+		SELECT CT_TABLE, CT_NM
+		FROM COMMON_TABLE
+		WHERE SUBSTR(CT_TABLE, 1, 1) = 'B'
+		ORDER BY CT_TABLE
+	</select>
+	<sql id="sameConditionSche">
+		FROM COMMON_TABLE
+	    WHERE SUBSTR(CT_TABLE, 1, 1) = 'S'
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.ctNm)">
+		    AND INSTR(CT_NM, #{detailSearch.ctNm}) > 0
+		</if>
+	</sql>
+	<select id="selectScheSortTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="sameConditionSche"/>
+	</select>
+	<select id="selectScheSortList" resultType="ScheSortVO" parameterType="PagingVO">
+		SELECT A.*
+		FROM(
+		      SELECT CT_TABLE, CT_NM, ROWNUM RNUM 
+			  <include refid="sameConditionSche"/>
+			  ORDER BY CT_TABLE
+			) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectPositionList" resultType="PositionVO" parameterType="PagingVO">
+		SELECT PST_CODE, PST_NM
+		FROM POSITION
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.pstNm)">
+			WHERE INSTR(PST_NM, #{detailSearch.pstNm}) > 0
+		</if>
+		ORDER BY PST_CODE DESC
+	</select>
+	<select id="selectRolesList" resultType="com.eg.vo.RolesVO" parameterType="com.eg.vo.PagingVO">
+		SELECT
+    		AUTHORITY, ROLE_NAME, DESCRIPTION, CREATE_DATE, MODIFY_DATE 
+    		FROM ROLES
+    		WHERE AUTHORITY NOT IN ('IS_AUTHENTICATED_ANONYMOUSLY', 'IS_AUTHENTICATED_REMEMBERED','IS_AUTHENTICATED_FULLY','ROLE_RESTRICTED','ROLE_ADMIN')
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.description)">
+			AND INSTR(DESCRIPTION, #{detailSearch.description}) > 0
+		</if>
+		ORDER BY CREATE_DATE
+	</select>
+
+	<sql id="sameConditionBank">
+		FROM BANK
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.bankNm)">
+		    WHERE INSTR(BANK_NM, #{detailSearch.bankNm}) > 0
+		</if>
+	</sql>
+	<select id="selectBankTotalRecord" resultType="int">
+		SELECT COUNT(*)
+		<include refid="sameConditionBank"/>
+	</select>
+	<select id="selectBankList" resultType="bankVO" parameterType="PagingVO">
+		SELECT A.*
+		FROM (
+		    SELECT BANK_CODE, BANK_NM, ROWNUM RNUM
+		    <include refid="sameConditionBank"/>
+		    ) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<sql id="sameConditionEmpl">
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN RETIRE R
+		ON (E.EMPL_NO = R.EMPL_NO) LEFT OUTER JOIN POSITION P
+		ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN COMMON_TABLE C
+		ON (E.EMPL_ENTRANCE = C.CT_TABLE)
+		WHERE EMPL_RETIRE IS NULL
+		<![CDATA[
+		AND E.EMPL_NO <> 9999999
+		]]>
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNm)">
+			AND INSTR(EMPL_NM, #{detailSearch.emplNm}) > 0
+		</if>
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptCode)">
+			AND E.DEPT_CODE = #{detailSearch.deptCode}
+		</if>
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplEcnyStart)">
+			AND EMPL_ECNY >= TO_DATE(#{detailSearch.emplEcnyStart}, 'YY/MM/DD')
+		</if>
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplEcnyEnd)">
+			<![CDATA[
+			AND EMPL_ECNY <= TO_DATE(#{detailSearch.emplEcnyEnd}, 'YY/MM/DD') + 1
+			]]>
+		</if>
+	</sql>
+	<select id="selectEmplToTalRecord" resultType="int">
+		SELECT COUNT(*)
+		<include refid="sameConditionEmpl"/>
+	</select>
+	<select id="selectEmplList" resultType="EmplVO" parameterType="PagingVO">
+		SELECT B.*
+		FROM (
+			SELECT A.*, ROWNUM RNUM
+			FROM(
+				SELECT E.EMPL_NO, EMPL_NM
+					 , E.DEPT_CODE, DEPT_NM "dept.deptNm", EMPL_RETIRE
+					 , E.PST_CODE, PST_NM "position.pstNm"
+					 , TO_CHAR(EMPL_ECNY, 'YYYY-MM-DD') EMPL_ECNY
+					 , E.EMPL_ENTRANCE
+					 , C.CT_NM "entrance.ctNm"
+				<include refid="sameConditionEmpl"/>
+				ORDER BY E.EMPL_NO
+				) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectCommonTableTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(*)
+		<include refid="sameConditionCT"/>
+	</select>
+	<select id="selectCommonTableList" parameterType="PagingVO" resultType="CommonTableVO">
+		SELECT CT_TABLE,    CT_NM,    CT_USE,    CT_NOTE1,    CT_NOTE2,    CT_NOTE3
+		<include refid="sameConditionCT"/>
+	</select>
+	<sql id="sameConditionCT">
+		FROM COMMON_TABLE
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(simpleSearch.typePrefix)">
+				WHERE INSTR(CT_TABLE, #{simpleSearch.typePrefix}) > 0
+			</if>
+	</sql>
+	<resultMap type="com.eg.vo.LineBoxVO" id="LineBoxMap">
+		<id column="LCB_LINE_NO" property="lcbLineNo"/>
+		<collection property="auths" javaType="java.util.List" ofType="com.eg.vo.AuthVO" autoMapping="false">
+			<id column="AUTHOR_ID" property="authorId"/>
+			<result column="AUTHOR_NM" property="authorNm" />
+			<result column="AUTHOR_ORDER" property="authorOrder" />
+			<result column="PST_NM" property="pstNm"/>
+			<result column="AUTHOR_AUTH_TY_CODE" property="authorAuthTyCode"/>
+			<result column="AUTHOR_AUTH_TY" property="authorAuthTy"/>
+		</collection>
+	</resultMap>
+	<select id="selectMyLineList" parameterType="PagingVO" resultType="LineBoxVO">
+		SELECT LCB_LINE_NO, LCB_AUTHL_NM
+		FROM LINE_CSTDY_BX
+		WHERE LCB_EMPL=#{detailSearch.lcbEmpl}
+		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.lcbAuthlNm)">
+			AND INSTR(LCB_AUTHL_NM,#{detailSearch.lcbAuthlNm}) > 0
+		</if>
+		ORDER BY 1
+	</select>
+	<select id="selectMyLine" parameterType="Map" resultMap="LineBoxMap">
+		 SELECT 
+		 	LCB.LCB_LINE_NO, LCB.LCB_AUTHL_NM, LCB.LCB_EMPL,
+		 	A.AUTHOR_ORDER, A.AUTHOR_ID, 
+		 	E.EMPL_NM AS "AUTHOR_NM", P.PST_NM AS "PST_NM", 
+		 	CT.CT_TABLE as "AUTHOR_AUTH_TY_CODE", CT.CT_NM as "AUTHOR_AUTH_TY" 
+		 FROM 
+		 	LINE_CSTDY_BX LCB INNER JOIN AUTHOR A ON (LCB.LCB_LINE_NO = A.LCB_LINE_NO)
+		 	LEFT OUTER JOIN COMMON_TABLE CT ON (A.AUTHOR_AUTH_TY = CT.CT_TABLE)
+		 	INNER JOIN EMPLOYEE E ON(E.EMPL_NO = A.AUTHOR_ID) 
+		 	INNER JOIN POSITION P ON(E.PST_CODE = P.PST_CODE) 
+	 	WHERE LCB.LCB_EMPL = #{emplNo} 
+			AND LCB.LCB_LINE_NO = #{lineNo} 
+		ORDER BY AUTHOR_ORDER
+	</select>
+	<sql id="sameConditionVcatn">
+		FROM VACATION
+		<trim prefix=" WHERE " prefixOverrides="AND">
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.vcatnNm)">
+				AND INSTR(VCATN_NM, #{detailSearch.vcatnNm}) > 0
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.vcatnUse)">
+				AND VCATN_USE = 'Yes'
+			</if>
+		</trim>
+	</sql>
+	<select id="selectVcatnTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="sameConditionVcatn"/>
+	</select>
+	<select id="selectVcatnList" parameterType="PagingVO" resultType="VacationVO">
+		SELECT A.*
+		FROM (
+		    SELECT VCATN_CODE, VCATN_NM, VCATN_USE, ROWNUM RNUM
+			<include refid="sameConditionVcatn"/>
+		    ) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+</mapper>

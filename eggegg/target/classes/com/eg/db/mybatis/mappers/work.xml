@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.work.dao.WorkDAO">
+	<select id="alList" resultType="com.eg.vo.AllowanceVO">
+		SELECT AL_CODE, AL_NM, AL_PROVIDE
+		FROM ALLOWANCE
+		WHERE AL_USE = 'Yes'
+		AND AL_NM IS NOT NULL
+		AND AL_PROVIDE NOT IN('고정')
+	</select>
+
+	<select id="projectList" resultType="com.eg.vo.ProjectVO">
+	SELECT PRJ_CODE, PRJ_NM, PRJ_PERIOD
+	FROM PROJECT
+	WHERE PRJ_USE ='Yes'
+	</select>
+
+	<select id="list" parameterType="com.eg.vo.AutoAllowVO" resultType="com.eg.vo.AutoAllowVO">
+		WITH TIME AS
+		(SELECT TO_CHAR(ATVL_ATT_TM, 'YYYY-MM-DD HH24:MI') WORK_TIME,
+		TO_CHAR(ATVL_LV_TM, 'YYYY-MM-DD HH24:MI') FINISH_TIME,
+		ATVL_EMPL AS EMPL_NO,
+		20||DATE_CODE AS DATE_CODE,
+		TO_CHAR(TO_DATE(DATE_CODE),'DY') DAY
+		FROM ATTENDE_LVFFC
+		WHERE ATVL_ATT_TM BETWEEN #{workTime} AND #{finishTime}
+		AND ATVL_EMPL = #{emplNo})
+		SELECT TRUNC((TO_DATE(TIME.FINISH_TIME ,'YYYY-MM-DD HH24:MI') - TO_DATE(TIME.WORK_TIME, 'YYYY-MM-DD HH24:MI')) *24) AS WORK
+		,TIME.*
+		FROM TIME
+		ORDER BY WORK_TIME
+	</select>
+
+	<select id="pto" parameterType="com.eg.vo.AutoAllowVO" resultType="com.eg.vo.AutoAllowVO">
+		SELECT TO_CHAR(VACSTUS_CODE,'YYYYMMDD') PTO
+		FROM VAC_STATUS A LEFT OUTER JOIN DRAFT B ON (A.DRAFT_NO = B.DRAFT_NO)
+		WHERE A.EMPL_NO = #{emplNo}
+		AND VACSTUS_CODE BETWEEN #{workTime} AND #{finishTime}
+		AND VACSTUS_HALF_AT = 'Yes'
+		AND DRAFT_PROGRESS = '결재완료'
+	</select>
+	
+	<insert id="insertWork" parameterType="com.eg.vo.WorkVO">
+		MERGE INTO WORK A
+		USING DUAL
+		ON(A.EMPL_NO = #{emplNo} 
+		AND A.WORK_STDATE = #{workStdate} 
+		AND A.AL_CODE = #{alCode}
+		AND A.WORK_DATE = #{workDate})
+		WHEN MATCHED THEN
+		UPDATE SET
+		WORK_HOUR = #{workHour},
+		PRJ_CODE = #{prjCode,jdbcType=VARCHAR}
+		WHEN NOT MATCHED THEN
+		INSERT(EMPL_NO,AL_CODE,PRJ_CODE,WORK_HOUR,WORK_DATE,WORK_STDATE)
+		VALUES(
+			#{emplNo, jdbcType=NUMERIC},
+			#{alCode, jdbcType=VARCHAR},
+			#{prjCode, jdbcType=VARCHAR},
+			#{workHour, jdbcType=NUMERIC},
+			#{workDate, jdbcType=DATE},
+			#{workStdate, jdbcType=VARCHAR}
+		)
+	</insert>
+	
+	<select id="countWorkList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(DISTINCT(WORK_STDATE))
+		FROM WORK
+		WHERE WORK_STDATE BETWEEN #{detailSearch.startDate} AND #{detailSearch.lastDate}
+	</select>
+	
+	<select id="workList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.WorkVO">
+		WITH ALLOW AS (
+		    SELECT DISTINCT W.AL_CODE, AL_NM
+		    FROM WORK W LEFT OUTER JOIN ALLOWANCE A
+		    ON (W.AL_CODE = A.AL_CODE)
+		    GROUP BY (W.AL_CODE, AL_NM)
+		),
+		EMPL AS (
+		    SELECT DISTINCT W.EMPL_NO, EMPL_NM
+		    FROM WORK W LEFT OUTER JOIN EMPLOYEE E
+		    ON (W.EMPL_NO = E.EMPL_NO)
+		    GROUP BY (W.EMPL_NO, EMPL_NM)
+		)
+		SELECT B.*
+		FROM (
+		    SELECT A.*, ROWNUM RNUM, T.EMPL_NM
+		    FROM (
+		        SELECT DISTINCT WORK_STDATE
+		             , MIN(W.EMPL_NO) EMPL_NO
+		             , COUNT(DISTINCT W.EMPL_NO) - 1 EMPL_COUNT
+		             , REGEXP_REPLACE(LISTAGG (AL_NM, ',') WITHIN GROUP (ORDER BY W.AL_CODE), '([^,]+)(,\1)+', '\1') AL_NM
+		             , SUM(WORK_HOUR) WORK_HOUR
+		        FROM WORK W LEFT OUTER JOIN EMPL E
+		        ON (W.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN ALLOW A
+		        ON (W.AL_CODE = A.AL_CODE)
+		        GROUP BY WORK_STDATE
+		        HAVING WORK_STDATE BETWEEN TO_DATE(#{detailSearch.startDate}, 'YYYY-MM-DD') AND TO_DATE(#{detailSearch.lastDate}, 'YYYY-MM-DD')
+		    ) A INNER JOIN EMPLOYEE T ON(A.EMPL_NO = T.EMPL_NO)) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+			
+	</select>
+	
+	<select id="popWorkList" parameterType="String" resultType="com.eg.vo.WorkVO">
+	SELECT TO_CHAR(W.WORK_DATE,'YYYY-MM-DD') WORK_DATE,W.EMPL_NO, E.EMPL_NM, W.AL_CODE, A.AL_NM,A.AL_PROVIDE, W.WORK_HOUR, W.PRJ_CODE, P.PRJ_NM
+	FROM WORK W INNER JOIN EMPLOYEE E ON (W.EMPL_NO = E.EMPL_NO)
+	INNER JOIN ALLOWANCE A ON (W.AL_CODE = A.AL_CODE)
+	LEFT OUTER JOIN PROJECT P ON (P.PRJ_CODE = W.PRJ_CODE)
+	WHERE WORK_STDATE = #{stdate}
+	ORDER BY EMPL_NO, WORK_DATE
+	</select>
+	
+	<select id="searchWorkList" parameterType="com.eg.vo.WorkVO" resultType="com.eg.vo.WorkVO">
+	SELECT TO_CHAR(W.WORK_DATE,'YYYY-MM-DD') WORK_DATE,W.EMPL_NO, E.EMPL_NM, W.AL_CODE, A.AL_NM,A.AL_PROVIDE, W.WORK_HOUR, W.PRJ_CODE, P.PRJ_NM
+	FROM WORK W INNER JOIN EMPLOYEE E ON (W.EMPL_NO = E.EMPL_NO)
+	INNER JOIN ALLOWANCE A ON (W.AL_CODE = A.AL_CODE)
+	LEFT OUTER JOIN PROJECT P ON (P.PRJ_CODE = W.PRJ_CODE)
+	WHERE WORK_STDATE = #{workStdate}
+	<if test="searchEmpl != null">
+		AND INSTR(E.EMPL_NM, #{searchEmpl}) > 0
+	</if>
+	<if test="startDate != null">
+		AND WORK_DATE >= #{startDate}
+	</if>
+	<if test="lastDate != null">
+		<![CDATA[
+		AND WORK_DATE <= #{lastDate}
+		]]>
+	</if>
+	ORDER BY EMPL_NO, WORK_DATE
+	</select>
+	
+	<delete id="deleteWork" parameterType="com.eg.vo.WorkVO">
+		DELETE FROM WORK 
+		WHERE 
+		WORK_STDATE = #{workStdate}
+		AND EMPL_NO = #{emplDel}
+		AND WORK_DATE = #{dateDel,jdbcType=DATE}
+		AND AL_CODE = #{codeDel}
+	</delete>
+	
+	<delete id="deleteworkList" parameterType="String">
+		DELETE FROM WORK
+		WHERE
+		WORK_STDATE = #{stdate}
+	</delete>
+	
+</mapper>

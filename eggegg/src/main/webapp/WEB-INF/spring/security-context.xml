@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans 
+	xmlns="http://www.springframework.org/schema/security"
+	xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:c="http://www.springframework.org/schema/c"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-4.2.xsd">
+
+	<beans:bean id="passwordEncoder" class="org.springframework.security.crypto.factory.PasswordEncoderFactories" 
+		factory-method="createDelegatingPasswordEncoder"/>
+
+	<beans:bean id="authenticationProvider" class="org.springframework.security.authentication.dao.DaoAuthenticationProvider" 
+	p:userDetailsService-ref="authService"
+	p:passwordEncoder-ref="passwordEncoder"
+	p:hideUserNotFoundExceptions="false"
+	/>
+
+	<authentication-manager id="authManager">
+		<authentication-provider ref="authenticationProvider" />
+	</authentication-manager>
+
+	<beans:bean id="grantedAuthorityDefaults" class="org.springframework.security.config.core.GrantedAuthorityDefaults" 
+		c:rolePrefix=""
+	/>
+
+	<beans:bean id="accessDecisionManager" class="org.springframework.security.access.vote.ConsensusBased"
+		p:allowIfEqualGrantedDeniedDecisions="false"
+		p:messageSource-ref="messageSource"
+	>
+		<beans:constructor-arg name="decisionVoters">
+			<beans:list>
+				<beans:bean class="org.springframework.security.access.vote.AuthenticatedVoter" />
+<!-- 					권한 계층 구조 관련, RoleHierarchyImpl API 문서 참고. -->
+				<beans:bean class="org.springframework.security.access.vote.RoleHierarchyVoter"
+					p:rolePrefix="#{grantedAuthorityDefaults.rolePrefix}"
+				>
+					<beans:constructor-arg name="roleHierarchy">
+						<beans:bean class="org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl">
+							<beans:property name="hierarchy">
+								<beans:bean class="com.eg.security.auth.RoleHierarchyStringFactoryBean" />
+							</beans:property>
+						</beans:bean>
+					</beans:constructor-arg>
+				</beans:bean>
+			</beans:list>
+		</beans:constructor-arg>
+	</beans:bean>
+
+	<beans:bean id="requestMap" class="com.eg.security.auth.RequestMapFactoryBean" />
+	
+	<beans:bean id="filterInvocationSecurityMetadataSource" class="com.eg.security.auth.ReloadableFilterInvocationSecurityMetadataSource" 
+		c:requestMap-ref="requestMap"
+	/>
+	
+	<beans:bean id="filterSecurityInterceptor" class="org.springframework.security.web.access.intercept.FilterSecurityInterceptor" 
+		p:authenticationManager-ref="authManager"
+		p:accessDecisionManager-ref="accessDecisionManager"
+		p:securityMetadataSource-ref="filterInvocationSecurityMetadataSource"
+		p:messageSource-ref="messageSource"
+	/>
+	
+	<beans:bean id="webInvocationPrivilegeEvaluator" class="org.springframework.security.web.access.DefaultWebInvocationPrivilegeEvaluator" 
+		c:securityInterceptor-ref="filterSecurityInterceptor"
+	/>
+	
+	<beans:bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource" 
+		p:basenames="com.eg.msgs.errorMessage,com.eg.msgs.message,com.eg.msgs.securityMessages"
+	/>
+	
+	<beans:bean id="messageSourceAccessor" class="org.springframework.context.support.MessageSourceAccessor" 
+		c:messageSource-ref="messageSource"
+	/>
+	
+	<beans:bean id="localeResolver" class="org.springframework.web.servlet.i18n.CookieLocaleResolver" 
+		p:cookieName="languageCookie"
+		p:cookieMaxAge="#{60*60*24*7}"
+		p:cookiePath="/"
+	/>
+	
+	<beans:bean id="i18nSupportFilter" class="com.eg.filter.I18nSupportFilter" />
+	
+	
+	
+<!-- 	Access Decision manager -->
+	<http auto-config="true" authentication-manager-ref="authManager" access-decision-manager-ref="accessDecisionManager" use-expressions="true">
+		<form-login 
+			login-page="/login/loginForm.jsp"
+			username-parameter="empl_no"
+			password-parameter="empl_pw"	
+			login-processing-url="/login/loginCheck.do"
+			authentication-failure-handler-ref="loginFailureHandler"
+			authentication-success-handler-ref="loginSuccessHandler"
+		/>
+		<logout logout-url="/login/logout.do" logout-success-url="/"/>
+
+
+		<anonymous enabled="true" username="anonymous" granted-authority="IS_AUTHENTICATED_ANONYMOUSLY"/>
+
+		<csrf disabled="true"/>
+		
+		<custom-filter ref="i18nSupportFilter" before="SWITCH_USER_FILTER"/>
+		<custom-filter ref="filterSecurityInterceptor" before="FILTER_SECURITY_INTERCEPTOR"/>
+	</http>
+
+	<beans:bean id="loginFailureHandler" class="com.eg.security.auth.handler.LoginFailureHandler">
+		<beans:property name="loginidname" value="empl_no"/>
+		<beans:property name="loginpwdname" value="empl_pw"/>
+		<beans:property name="defaultFailureUrl" value="/login/loginForm.jsp"/>
+	</beans:bean>
+
+	<beans:bean id="loginSuccessHandler" class="com.eg.security.auth.handler.LoginSuccessHandler">
+		<beans:property name="defaultUrl" value="/mainPage.do"/>
+	</beans:bean>
+	
+	<global-method-security pre-post-annotations="enabled" />
+</beans:beans>
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,169 @@
+@charset "UTF-8";
+#bottom{
+	position: fixed;
+	bottom: 75px;
+	width:100%;
+	z-index: 2;
+}
+td{
+	padding:3px 10px;
+	height : 30px;
+}
+#cb td input{
+	height : 28px;
+}
+td select{
+width :100%;
+}
+table{
+	width : 100%;
+	margin-left : 10px;
+}
+main {
+	width: 83%;
+	padding: 30px 0 0;
+}
+.tfdb input{
+	width: 98%;
+}
+tr{
+	height:36px;
+}
+th{
+	background : #FCFCFE;
+	text-align : center;
+	padding : 15px;
+}
+#th1{
+	width : 200px;
+}
+ #th2{ 
+ 	width : 350px; 
+ } 
+#th3{ 
+ 	width: 180px;  
+} 
+ #th4{ 
+ 	width : 350px; 
+} 
+.td1{
+}
+
+.seq{
+	text-align: right;
+}
+table,th,td{
+	border : 1px solid #EAEAEA;
+	border-collapse: collapse;
+}
+td, th{
+	border: 1px solid #EAEAEA;
+	padding: 5px 10px;
+	height: 36px;
+}
+.No input[type=text]:disabled{
+	background : #FCFCFE;
+}
+input[type="text"]:disabled{
+	width : 100%;
+	background :white;
+	border : none;
+	color: black;
+}
+.dropup {
+  position: relative;
+  display: inline-block;
+}
+
+.dropup-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 160.8px;
+  border : 1px solid rgb(118, 118, 118);
+  bottom: 35px;
+  z-index: 1;
+  font-size: 12px;
+}
+
+.dropup-content a {
+  color: black;
+  padding: 3px 5px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropup-content a:hover {background-color: #F1F1F8}
+
+.dropup:hover .dropup-content {
+  display: block;
+}
+
+.dropbtn {
+	color: black;
+	border: 1px solid rgb(118, 118, 118);
+	padding: 3px 10px;
+	border-radius: 3px;
+}
+.hang{
+	width: 130px;
+}
+.cen{
+	width :20px;
+	text-align: center;
+}
+.No{
+	background : #FEE5E5;
+}
+a{
+	cursor: pointer;
+}
+.No input[type=text]:disabled{
+   background : #FEE5E5;
+}
+input:-webkit-autofill {
+   -webkit-box-shadow: 0 0 0 1000px white inset;
+}
+.td1{
+	text-align: center;
+}
+hr{
+	margin: 5px 0px;
+}
+#title{
+	font-size: 20px;
+	margin: 10px;
+	margin-bottom: 20px;
+	font-weight: bold;
+}
+.emplListTd{
+	border: 1px solid #EAEAEA;
+   	padding: 5px 10px;
+   	height: 36px;
+   	width: 48px;
+}
+input[name=alNm]{
+	width : 223px;
+}
+.saveBtn{
+	background: #3A4CA8;
+	color: white;
+	border-radius: 3px;
+	padding: 1px 10px;
+	margin: 2px 0px 2px 10px;
+}
+.sort{
+	font-size: 0.5em;
+	vertical-align: 0.3em;
+}
+#useNo, #useYes{
+	padding: 2px 10px;
+}
+#background{
+	position:fixed;
+	bottom: 70px;
+	height: 50px;
+	width: 100%;
+	background: white;
+	z-index: 1;
+}

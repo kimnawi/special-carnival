@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.project.dao.ProjectDAO">
+	<sql id="sameCondition">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">			
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.prjNm)">
+					AND INSTR(PRJ_NM, #{detailSearch.prjNm}) > 0
+				</if>
+			</if>
+		</trim>
+	</sql>
+	<sql id="sameCondition2">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">			
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.prjNm)">
+					AND INSTR(PRJ_NM, #{detailSearch.prjNm}) > 0
+				</if>
+			</if>
+			<if test="detailSearch == null">
+				WHERE PRJ_USE = 'Yes'
+			</if>
+			<if test="detailSearch != null">
+				AND PRJ_USE = 'Yes'
+			</if>
+		</trim>
+	</sql>
+	
+	<select id="countProjectListY" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM PROJECT
+		<include refid="sameCondition" />
+		ORDER BY PRJ_USE DESC, PRJ_CODE
+	</select>
+	
+	<select id="projectListY" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.ProjectVO">
+		WITH PROALL AS(
+			SELECT PRJ_CODE, PRJ_NM, PRJ_SUMRY, PRJ_USE, PRJ_PERIOD
+			FROM PROJECT
+			<include refid="sameCondition" />
+			ORDER BY PRJ_USE DESC, PRJ_CODE
+		)
+		SELECT A.*
+		FROM(
+			SELECT ROWNUM RNUM, PROALL.*
+			FROM PROALL
+		) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		
+	</select>
+	<select id="countProjectList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM PROJECT
+		<include refid="sameCondition2" />
+		ORDER BY PRJ_USE DESC, PRJ_CODE
+	</select>
+	
+	<select id="projectList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.ProjectVO">
+		WITH PROALL AS(
+			SELECT PRJ_CODE, PRJ_NM, PRJ_SUMRY, PRJ_USE, PRJ_PERIOD
+			FROM PROJECT
+			<include refid="sameCondition2" />
+			ORDER BY PRJ_USE DESC, PRJ_CODE
+		)
+		SELECT A.*
+		FROM(
+			SELECT ROWNUM RNUM, PROALL.*
+			FROM PROALL
+		) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		
+	</select>
+	
+	<update id="stopProject" parameterType="String">
+		UPDATE PROJECT SET
+		PRJ_USE = 'No'
+		WHERE PRJ_CODE = #{prjCode}
+	</update>
+	
+	<update id="continueProject" parameterType="String">
+		UPDATE PROJECT SET
+		PRJ_USE = 'Yes'
+		WHERE PRJ_CODE = #{prjCode}
+	</update>
+	
+	<delete id="deleteProject" parameterType="String">
+		DELETE FROM PROJECT
+		WHERE PRJ_CODE = #{prjCode}	
+	</delete>
+	
+	<select id="createCode" resultType="String">
+		SELECT LPAD(MAX(PRJ_CODE)+1,5,'0')
+		FROM PROJECT
+	</select>
+	
+	<select id="selectproject" parameterType="String" resultType="com.eg.vo.ProjectVO">
+		SELECT PRJ_CODE, PRJ_NM, PRJ_SUMRY, PRJ_PERIOD
+		FROM PROJECT
+		WHERE PRJ_CODE = #{prjCode}
+	</select>
+	
+	<insert id="insertProject" parameterType="com.eg.vo.ProjectVO">
+		MERGE INTO PROJECT A
+		USING DUAL
+		ON (A.PRJ_CODE = #{prjCode})
+		WHEN MATCHED THEN
+		UPDATE SET
+		PRJ_NM = #{prjNm},
+		PRJ_SUMRY = #{prjSumry},
+		PRJ_PERIOD = #{prjPeriod}
+		WHEN NOT MATCHED THEN
+		INSERT(PRJ_CODE, PRJ_NM, PRJ_PERIOD, PRJ_SUMRY)
+		VALUES(#{prjCode},#{prjNm},#{prjPeriod},#{prjSumry})
+	</insert>
+	
+	<select id="selectProjectList" resultType="com.eg.vo.ProjectVO">
+		SELECT PRJ_CODE , PRJ_NM ,PRJ_PERIOD , PRJ_SUMRY , PRJ_USE 
+		FROM PROJECT
+		ORDER BY PRJ_USE DESC ,PRJ_CODE
+	</select>	
+</mapper>

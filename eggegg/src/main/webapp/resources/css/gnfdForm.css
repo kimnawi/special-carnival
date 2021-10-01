@@ -1,0 +1,82 @@
+@charset "UTF-8";
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300&display=swap');
+*{
+	font-family: 'Noto Sans KR', sans-serif;
+	font-size: 18px;
+}
+body{
+	overflow: hidden;
+}
+table{
+	border-collapse: collapse;
+	width: 100%;
+	background: #FCFCFE;
+}
+#title{
+	margin: 10px;
+	font-size: 20px;
+	font-weight: bold;
+}
+#bottom{
+	width: 97%;
+	position: fixed;
+	bottom: 10px;
+	z-index: 1;
+}
+th, td{
+	padding: 10px 10px;
+}
+input::placeholder{
+	color: #D9D9D9;
+}
+textarea::placeholder{
+	color: #D9D9D9;
+}
+.saveBtn {
+    display: inline-block;
+    text-decoration: none;
+    color: white;
+    padding: 1px 12px;
+    background: #3A4CA8;
+    border-radius: 3px;
+}
+.required{
+	color: red;
+}
+.searchImg {
+	position: relative;
+    width: 25px;
+    right: 3px;
+    top: 1px;
+    margin: 0px;
+    padding: 0px;
+    z-index: 1;
+}
+.small-search {
+    position: relative;
+    left:1px;
+    display: inline;
+    width: 32px;
+    height: 32px;
+    text-align: center;
+    vertical-align: middle;
+    z-index: 1;
+    bottom: 3px;
+    border: 1px solid black;
+    border-radius: 2px;
+}
+.form-table input[type=text]{
+	width: 187px;
+}
+.form-table input[type=date]{
+	width: 223px;
+}
+.form-table select{
+	width: 228px;
+}
+#sumry{
+	width: 590px;
+}
+.required{
+	color: red;
+}

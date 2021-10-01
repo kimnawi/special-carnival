@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.allowance.dao.AllowanceDAO">
+	<select id="selectAlList" resultType="com.eg.vo.AllowanceVO">
+		SELECT A.AL_CODE, A.AL_NM, A.AL_SEQ, B.TF_NM ,B.TF_CODE, A.AL_PROVIDE, A.AL_USE
+		FROM ALLOWANCE A INNER JOIN TAX_FREE B ON (A.TF_CODE = B.TF_CODE) 	
+		ORDER BY A.AL_USE DESC, A.AL_CODE 
+	</select>
+	
+	<update id="updateAlList" parameterType="com.eg.vo.AllowanceVO">
+		UPDATE ALLOWANCE SET 
+		AL_NM = #{alNm},
+		TF_CODE = #{tfCode},
+		AL_PROVIDE = #{alProvide}
+		WHERE AL_CODE = #{alCode}
+	</update>
+	
+	<update id="continueAllowance" parameterType="String">
+		UPDATE ALLOWANCE SET
+		AL_USE = 'Yes'
+		WHERE AL_CODE = #{alCode}
+	</update>
+	
+	<update id="stopAllowance" parameterType="String">
+		UPDATE ALLOWANCE SET
+		AL_USE = 'No'
+		WHERE AL_CODE = #{alCode}
+	</update>
+	
+	<update id="deleteAllowance" parameterType="String">
+		UPDATE ALLOWANCE SET
+		AL_NM = '',
+		AL_PROVIDE ='고정',
+		TF_CODE = '80000',
+		AL_USE = 'Yes'
+		WHERE AL_CODE = #{alCode}
+	</update>
+	<sql id="sameCondition">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.tfCode)">
+					AND INSTR(TF_CODE, #{detailSearch.tfCode}) > 0
+				</if>			
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.tfNm)">
+					AND INSTR(TF_NM, #{detailSearch.tfNm}) > 0
+				</if>			
+			</if>
+		</trim>	
+	</sql>
+	<select id="countTaxFreeList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM TAX_FREE
+		<include refid="sameCondition" />
+	</select>
+	
+	<select id="selectTaxFreeList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.TaxFreeVO">
+		SELECT A.*
+		FROM (
+		SELECT ROWNUM RNUM, TF_CODE, TF_NM, TF_INCOME, TF_LAW, TF_WRITE, TF_SUMRY
+		FROM TAX_FREE
+		<include refid="sameCondition" />
+		) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	
+</mapper>

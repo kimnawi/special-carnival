@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.group.msg.dao.MsgDAO">
+    <sql id="sameCondition">
+    FROM MESSAGE M LEFT OUTER JOIN EMPLOYEE E ON (M.MSG_SENDER = E.EMPL_NO) 
+                   LEFT OUTER JOIN EMPLOYEE P ON (M.MSG_RECEIVER = P.EMPL_NO) 
+    	<if test="detailSearch != null">
+    		<trim prefix="WHERE" prefixOverrides="AND">
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgSdateStart)">
+						AND M.MSG_SDATE >= TO_DATE(#{detailSearch.msgSdateStart}, 'YY/MM/DD')
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgSdateEnd)">
+	    				<![CDATA[
+						AND M.MSG_SDATE <= TO_DATE(#{detailSearch.msgSdateEnd}, 'YY/MM/DD') + 1
+						]]>
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgSenderArr)">
+						AND M.MSG_SENDER IN
+						<foreach item="msgSender" collection="detailSearch.msgSenderArr" open="(" separator=", " close=")">
+						#{msgSender}
+						</foreach>
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgReceiverArr)">
+						AND M.MSG_RECEIVER IN
+						<foreach item="msgReceiver" collection="detailSearch.msgReceiverArr" open="(" separator=", " close=")">
+						#{msgReceiver}
+						</foreach>
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgContent)">
+						AND INSTR(M.MSG_CONTENT,#{detailSearch.msgContent}) > 0
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgState)">
+					<if test="detailSearch.msgState eq 'ALL'">
+						AND MSG_NO IS NOT NULL
+					</if>
+					<if test="detailSearch.msgState eq 'NCONFIRM'">
+						AND M.MSG_RDATE IS NULL
+					</if>
+					<if test="detailSearch.msgState eq 'CONFIRM'">
+						AND M.MSG_RDATE IS NOT NULL
+					</if>
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.authEmpl)">
+						AND M.MSG_RECEIVER = #{detailSearch.authEmpl}
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.authEmplSender)">
+						AND M.MSG_SENDER = #{detailSearch.authEmplSender}
+						AND M.MSG_SENDER != M.MSG_RECEIVER
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgSelf)">
+		    		<if test='detailSearch.msgSelf eq "O"'>
+		    				AND M.MSG_SENDER = #{detailSearch.authEmpl}
+		    				AND M.MSG_RECEIVER = M.MSG_SENDER
+				</if>
+				</if>
+	    		<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.msgSave)">
+<!-- 					<if test='detailSearch.msgSave eq "O"'> -->
+						AND M.MSG_SAVE IS NOT NULL
+<!-- 					</if> -->
+<!-- 					<if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.msgSave)"> -->
+<!-- 							AND M.MSG_SAVE IS NULL -->
+<!-- 					</if> -->
+				</if>
+			</trim>
+    	</if>
+    </sql>
+	<select id="selectTotalRecord" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+		<include refid="sameCondition"/>
+	</select>
+	<select id="selectMsgList" resultType="com.eg.vo.MsgVO" parameterType="com.eg.vo.PagingVO">
+		SELECT B.*
+		FROM (
+		SELECT A.*, ROWNUM RNUM
+		FROM (
+		SELECT MSG_NO, MSG_CONTENT, MSG_SENDER, E.EMPL_NM "empl.emplNm", MSG_RECEIVER , P.EMPL_NM "pmpl.emplNm"
+			 , TO_CHAR(MSG_SDATE, 'YYYY-MM-DD HH24:MI:SS') MSG_SDATE
+			 , TO_CHAR(MSG_RDATE, 'YYYY-MM-DD HH24:MI:SS') MSG_RDATE, MSG_SAVE
+		<include refid="sameCondition"/>
+		ORDER BY MSG_SDATE DESC
+		) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectMsgDetail" resultType="com.eg.vo.MsgVO">
+		SELECT MSG_NO, MSG_CONTENT, MSG_SENDER, E.EMPL_NM "empl.emplNm", MSG_RECEIVER , P.EMPL_NM "pmpl.emplNm" 
+		     , TO_CHAR(MSG_SDATE, 'YYYY-MM-DD HH24:MI:SS') MSG_SDATE
+		FROM MESSAGE M LEFT OUTER JOIN EMPLOYEE E ON (M.MSG_SENDER = E.EMPL_NO) 
+             		   LEFT OUTER JOIN EMPLOYEE P ON (M.MSG_RECEIVER = P.EMPL_NO)
+		WHERE MSG_NO = #{msgNo}
+	</select>
+	<insert id="insertMsg" parameterType="com.eg.vo.MsgVO">
+		INSERT INTO MESSAGE (MSG_NO, MSG_CONTENT, MSG_SENDER, MSG_RECEIVER, MSG_SDATE)
+		VALUES ( MSG_NUM_SEQ.NEXTVAL
+			  , #{msgContent, jdbcType=VARCHAR}
+			  , #{msgSender, jdbcType=NUMERIC}
+			  , #{msgReceiver, jdbcType=NUMERIC}
+		      , SYSDATE
+		)		
+	</insert>		
+	<delete id="deleteMsg" parameterType="String">
+		DELETE FROM MESSAGE
+		WHERE MSG_NO = #{msgNo}
+	</delete>
+	<update id="updateMsgConfirm" parameterType="String">
+		UPDATE MESSAGE
+		SET MSG_RDATE = SYSDATE
+		WHERE MSG_NO = #{msgNo}
+	</update>
+	<update id="updateMsgSave" parameterType="String">
+		UPDATE MESSAGE
+		SET MSG_SAVE = 'O'
+		WHERE MSG_NO = #{msgNo}
+	</update>
+	
+	<select id="selectName" parameterType="String" resultType="String">
+		select empl_nm
+		from employee
+		where empl_no = #{no}
+	
+	</select>
+	
+	<select id="selectMainMsg" parameterType="int" resultType="com.eg.vo.MsgVO">
+		SELECT MSG_NO, MSG_CONTENT, MSG_SENDER, E.EMPL_NM "empl.emplNm", MSG_RECEIVER , P.EMPL_NM "pmpl.emplNm"
+		 , TO_CHAR(MSG_SDATE, 'YYYY-MM-DD') MSG_SDATE
+		 , TO_CHAR(MSG_RDATE, 'YYYY-MM-DD') MSG_RDATE, MSG_SAVE
+        FROM MESSAGE M LEFT OUTER JOIN EMPLOYEE E ON (M.MSG_SENDER = E.EMPL_NO) 
+          LEFT OUTER JOIN EMPLOYEE P ON (M.MSG_RECEIVER = P.EMPL_NO) 
+          WHERE M.MSG_RECEIVER = #{no}
+          AND M.MSG_RDATE IS NULL
+          ORDER BY MSG_SDATE DESC	
+	</select>
+</mapper>

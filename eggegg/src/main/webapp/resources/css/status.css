@@ -1,0 +1,51 @@
+@charset "UTF-8";
+#statusTitle{
+	margin-top: 30px;
+	text-align: center;
+	font-size: 1.5em;
+}
+#excel{
+	margin-left: 5px;
+}
+#list-table{
+	margin-bottom: 50px;
+	z-index: -2;
+}
+#background{
+	position:fixed;
+	bottom: 63px;
+	height: 50px;
+	width: 100%;
+	background: white;
+	z-index: -1;
+}
+.searchImg {
+	position: relative;
+    width: 25px;
+    right: 3px;
+    top: -1px;
+    margin: 0px;
+    padding: 0px;
+    z-index: 1;
+}
+.small-search {
+    position: relative;
+    display: inline;
+    left:1px;
+    width: 33px;
+    height: 33px;
+    text-align: center;
+    vertical-align: middle;
+    z-index: 1;
+    bottom: 3px;
+    border: 1px solid black;
+    border-radius: 2px;
+}
+#list-table{
+	width: 98%;
+	text-align: center;
+}
+#main-table{
+	overflow: auto;
+	height: 800px;
+}

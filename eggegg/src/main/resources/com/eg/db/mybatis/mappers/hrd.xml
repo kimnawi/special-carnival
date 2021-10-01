@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.hrd.dao.HrdDAO">
+	<select id="selectAttendeLvffcCntList" resultType="AttendeLvffcVO" parameterType="string">
+		WITH EMPLINCNT AS(
+		    SELECT DATE_CODE, COUNT(ATVL_EMPL) EMPL_IN_CNT
+		    FROM ATTENDE_LVFFC
+		    GROUP BY DATE_CODE, ATVL_FORM
+		    HAVING ATVL_FORM = 'IN'
+		),
+		EMPLOUTCNT AS(
+		    SELECT DATE_CODE, COUNT(ATVL_EMPL) EMPL_OUT_CNT
+		    FROM ATTENDE_LVFFC
+		    GROUP BY DATE_CODE, ATVL_FORM
+		    HAVING ATVL_FORM = 'OUT'
+		),
+		EMPLALL AS (
+		    SELECT DATE_CODE, COUNT(*) EMPL_CNT
+		    FROM EMPLOYEE E LEFT OUTER JOIN RETIRE R
+		    ON (E.EMPL_NO = R.EMPL_NO), DATE_TABLE
+		    <![CDATA[
+		    WHERE (EMPL_RETIRE IS NULL OR TO_DATE(DATE_CODE, 'YYMMDD') < EMPL_RETIRE)
+		    AND EMPL_ECNY <= TO_DATE(DATE_CODE, 'YYMMDD')+1
+		    AND E.EMPL_NO <> 9999999
+		    ]]>
+		    GROUP BY DATE_CODE
+		)
+		SELECT AL.DATE_CODE
+		     , '20' || TO_CHAR(TO_DATE(AL.DATE_CODE, 'YYMMDD'), 'YY-MM-DD') ATVL_ATT_TM
+		     , COUNT(AL.ATVL_EMPL) EMPL_WORK_CNT
+		     , EI.EMPL_IN_CNT
+		     , EO.EMPL_OUT_CNT
+		     , EA.EMPL_CNT
+		     , (EA.EMPL_CNT - COUNT(AL.ATVL_EMPL)) EMPL_ABSE_CNT
+		FROM ATTENDE_LVFFC AL LEFT OUTER JOIN EMPLINCNT EI
+		ON (AL.DATE_CODE = EI.DATE_CODE) LEFT OUTER JOIN EMPLOUTCNT EO
+		ON (AL.DATE_CODE = EO.DATE_CODE) LEFT OUTER JOIN EMPLALL EA
+		ON (AL.DATE_CODE = EA.DATE_CODE)
+		GROUP BY (AL.DATE_CODE, EI.EMPL_IN_CNT
+		        , EO.EMPL_OUT_CNT, EA.EMPL_CNT)
+		HAVING TO_DATE(SUBSTR(AL.DATE_CODE, 1, 4), 'YYMM')
+		       BETWEEN ADD_MONTHS(TO_DATE(#{atvlMonth, jdbcType=VARCHAR}, 'YYMM'), -1)
+		       AND ADD_MONTHS(TO_DATE(#{atvlMonth, jdbcType=VARCHAR}, 'YYMM'), 1)
+		ORDER BY AL.DATE_CODE
+	</select>
+	<sql id="atvlListSameCondition">
+		FROM ATTENDE_LVFFC AL LEFT OUTER JOIN EMPLOYEE E
+        ON (AL.ATVL_EMPL = E.EMPL_NO) LEFT OUTER JOIN DEPARTMENT D
+        ON (E.DEPT_CODE = D.DEPT_CODE)
+        WHERE SUBSTR(DATE_CODE, 1, 4) = #{detailSearch.atvlMonth, jdbcType=VARCHAR}
+        <if test="detailSearch != null">
+        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlEmplArray)">
+        		AND ATVL_EMPL IN
+        		<foreach item="atvlEmpl" collection="detailSearch.atvlEmplArray" open="(" separator=", " close=")">
+        			#{atvlEmpl}
+        		</foreach>
+        	</if>
+        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlStartDate)">
+				AND TO_DATE(DATE_CODE, 'YYMMDD') >= TO_DATE(#{detailSearch.atvlStartDate}, 'YYYY-MM-DD')
+            </if>
+        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlEndDate)">
+				<![CDATA[
+				AND TO_DATE(DATE_CODE, 'YYMMDD') <= TO_DATE(#{detailSearch.atvlEndDate}, 'YYYY-MM-DD')
+				]]>
+            </if>
+        </if>
+	</sql>
+	<select id="selectAtvlTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="atvlListSameCondition"/>
+	</select>
+	<select id="selectAttendeLvffcList" resultType="AttendeLvffcVO" parameterType="PagingVO">
+		SELECT B.*
+		FROM (
+		    SELECT ROWNUM RNUM, A.*
+		    FROM (
+		        SELECT TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'YYYY-MM-DD') DATE_CODE
+		        	 , ATVL_EMPL
+		             , EMPL_NM "empl.emplNm"
+		             , E.DEPT_CODE "dept.deptCode"
+		             , DEPT_NM "dept.deptNm"
+		             , TO_CHAR(ATVL_ATT_TM, 'AM HH:MI:SS') ATVL_ATT_TM
+		             , DECODE(ATVL_LV_TM, NULL, NULL, TO_CHAR(ATVL_LV_TM, 'AM HH:MI:SS')) ATVL_LV_TM
+		             , DECODE(ATVL_FORM, 'IN', '내근', 'OUT', '외근', '기타') ATVL_FORM
+		        <include refid="atvlListSameCondition"/>
+		        ORDER BY DATE_CODE DESC, ATVL_EMPL
+		        ) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectAtvlConfirm" parameterType="string" resultType="string">
+		SELECT ATVL_ATT_TM
+		FROM ATTENDE_LVFFC
+		WHERE ATVL_EMPL = #{atvlEmpl, jdbcType=NUMERIC}
+		AND DATE_CODE = TO_CHAR(SYSDATE, 'YYMMDD')
+	</select>
+	<insert id="insertAttende" parameterType="string">
+		INSERT INTO ATTENDE_LVFFC (ATVL_EMPL, ATVL_ATT_TM, ATVL_FORM, DATE_CODE)
+		VALUES (
+		      #{atvlEmpl, jdbcType=NUMERIC}
+		    , SYSDATE
+		    , 'IN'
+		    , TO_CHAR(SYSDATE, 'YYMMDD')
+		)
+	</insert>
+	<update id="updateLvffc" parameterType="string">
+		UPDATE ATTENDE_LVFFC
+		SET ATVL_LV_TM = SYSDATE
+		WHERE ATVL_EMPL = #{atvlEmpl, jdbcType=NUMERIC}
+		AND DATE_CODE = TO_CHAR(SYSDATE, 'YYMMDD')
+	</update>
+	<select id="selectAtvl" parameterType="string" resultType="AttendeLvffcVO">
+		SELECT TO_CHAR(ATVL_ATT_TM, 'YYYY-MM-DD AM HH:MI:SS') ATVL_ATT_TM
+		     , TO_CHAR(ATVL_LV_TM, 'YYYY-MM-DD AM HH:MI:SS') ATVL_LV_TM
+		     , EMPL_NM "empl.emplNm"
+		     , NVL(ATVL_PLACE, '사무실') ATVL_PLACE
+		     , DECODE(ATVL_FORM, 'IN', '내근', 'OUT', '외근', '기타') ATVL_FORM
+		FROM ATTENDE_LVFFC AL LEFT OUTER JOIN EMPLOYEE E
+		ON (ATVL_EMPL = EMPL_NO)
+		WHERE ATVL_EMPL = #{emplNo, jdbcType=NUMERIC}
+		AND DATE_CODE = TO_CHAR(SYSDATE, 'YYMMDD')
+	</select>
+	<select id="selectHrdStatus" resultType="AttendeLvffcVO" parameterType="PagingVO">
+		SELECT TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'YYYY-MM-DD') || '(' || TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'DY') || ')' DATE_CODE
+			 , TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'DY') DATE_DAY
+		     , ATVL_EMPL, EMPL_NM "empl.emplNm"
+		     , TO_CHAR(ATVL_ATT_TM, 'AM HH:MI:SS') ATVL_ATT_TM
+		     , TO_CHAR(ATVL_LV_TM, 'AM HH:MI:SS') ATVL_LV_TM
+		     , GREATEST(TRUNC((ATVL_LV_TM - ATVL_ATT_TM) * 24)-1, 0) ATVL_WORK_TM
+		FROM ATTENDE_LVFFC AL LEFT OUTER JOIN EMPLOYEE E
+		ON (ATVL_EMPL = E.EMPL_NO)
+        <if test="detailSearch != null">
+			<trim prefix=" WHERE " prefixOverrides="AND">
+	        	<if test="@org.apache.commons.lang3.StringUtils@isBlank(detailSearch.atvlStartDate) and @org.apache.commons.lang3.StringUtils@isBlank(detailSearch.atvlEndDate)">
+					AND DATE_CODE = TO_CHAR(SYSDATE, 'YYMMDD')
+				</if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlStartDate)">
+					AND TO_DATE(DATE_CODE, 'YYMMDD') >= TO_DATE(#{detailSearch.atvlStartDate}, 'YYYY-MM-DD')
+	            </if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlEndDate)">
+					<![CDATA[
+					AND TO_DATE(DATE_CODE, 'YYMMDD') <= TO_DATE(#{detailSearch.atvlEndDate}, 'YYYY-MM-DD')
+					]]>
+	            </if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlEmplArray)">
+	        		AND ATVL_EMPL IN
+	        		<foreach item="atvlEmpl" collection="detailSearch.atvlEmplArray" open="(" separator=", " close=")">
+	        			#{atvlEmpl}
+	        		</foreach>
+	        	</if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlForm)">
+	        		<if test="detailSearch.atvlForm eq 'IN'">
+	        			AND ATVL_FORM = 'IN'
+	        		</if>
+	        		<if test="detailSearch.atvlForm eq 'OUT'">
+	        			AND ATVL_FORM = 'OUT'
+	        		</if>
+	            </if>
+	        	<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.atvlWorkAt)">
+	        		<if test="detailSearch.atvlWorkAt eq 'WORK'">
+	        			AND TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'DY') NOT IN ('토', '일')
+	        		</if>
+	        		<if test="detailSearch.atvlWorkAt eq 'REST'">
+	        			AND TO_CHAR(TO_DATE(DATE_CODE, 'YYMMDD'), 'DY') IN ('토', '일')
+	        		</if>
+	            </if>
+			</trim>
+        </if>
+		ORDER BY DATE_CODE DESC, ATVL_EMPL
+	</select>
+</mapper>

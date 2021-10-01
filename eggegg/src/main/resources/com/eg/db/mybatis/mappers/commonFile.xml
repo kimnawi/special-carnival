@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.file.dao.CommonFileDAO">
+	<select id="selectCommonFile" parameterType="Integer" resultType="com.eg.vo.CommonFileVO">
+		SELECT COMMON_NO, COMMON_PATH
+		FROM COMMON_FILE
+		WHERE COMMON_NO = #{commonNo}
+	</select>
+	
+	<select id="selectCommonFileByPath" parameterType="String" resultType="com.eg.vo.CommonFileVO">
+		SELECT COMMON_NO, COMMON_PATH
+		FROM COMMON_FILE
+		WHERE COMMON_PATH LIKE #{commonPath,jdbcType=CLOB}
+	</select>
+	
+	<insert id="insertCommonFile" parameterType="com.eg.vo.CommonFileVO">
+		<selectKey keyProperty="commonNo" order="BEFORE" resultType="Integer">
+			SELECT NVL(MAX(COMMON_NO),0)+1	FROM COMMON_FILE
+		</selectKey>
+		INSERT INTO COMMON_FILE (COMMON_NO, COMMON_PATH)
+		VALUES(
+			#{commonNo}
+			,#{commonPath,jdbcType=CLOB}
+		)
+	</insert>
+	
+	<delete id="deleteCommonFileByPath" parameterType="String">
+		DELETE FROM COMMON_FILE
+		WHERE COMMON_PATH LIKE #{commonPath}
+	</delete>
+	
+	<update id="updateCommonFile" parameterType="CommonFileVO">
+		UPDATE COMMON_FILE
+		SET COMMON_PATH = #{commonPath}
+		WHERE COMMON_NO = #{commonNo}
+	</update>
+</mapper>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.deduction.dao.DeductionDAO">
+	<select id="selectDeList" resultType="com.eg.vo.DeductionVO">
+		SELECT DE_CODE, DE_NM, DE_SEQ, DE_USE
+		FROM DEDUCTION
+		ORDER BY DE_USE DESC, DE_CODE
+	</select>
+
+	<update id="updateDeList" parameterType="com.eg.vo.DeductionVO">
+		UPDATE DEDUCTION SET
+		DE_NM = #{deNm}
+		WHERE DE_CODE = #{deCode}
+	</update>
+	
+	<update id="continueDeduction" parameterType="String">
+		UPDATE DEDUCTION SET
+		DE_USE = 'Yes'
+		WHERE DE_cODE = #{deCode}
+	</update>
+
+	<update id="stopDeduction" parameterType="String">
+		UPDATE DEDUCTION SET
+		DE_USE = 'No'
+		WHERE DE_CODE = #{deCode}
+	</update>
+	
+	<update id="deleteDeduction" parameterType="String">
+		UPDATE DEDUCTION SET
+		DE_NM = '',
+		DE_USE = 'Yes'
+		WHERE DE_CODE = #{deCode}
+	</update>
+</mapper>

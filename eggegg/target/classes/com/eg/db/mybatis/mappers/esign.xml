@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.group.esign.dao.EsignDAO">
+	<select id="selectDraftList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.DraftVO" statementType="CALLABLE">
+		SELECT B.*
+		FROM (
+		SELECT A.*, ROWNUM RNUM
+		FROM (
+		SELECT
+		    D.DRAFT_NO, D.DRAFT_DATE,
+		    D.DRAFT_TITLE, D.DRAFT_TYPE,
+		    D.DRAFT_SECURITY,
+		    D.DRAFT_PROGRESS,
+		    D.DRAFT_CHIT_KND, D.DRAFT_WRITER, E.EMPL_NM AS "WRITER.EMPLNM", CT.CT_NM as "draftTypeNm"
+		    , GETNEXTAUTHNO(D.DRAFT_NO) AS "nextAuthorId"
+		    , NVL((SELECT EMPL_NM FROM EMPLOYEE WHERE EMPL_NO = GETNEXTAUTHNO(D.DRAFT_NO)),'-') AS "nextAuthor"
+    	FROM
+    		DRAFT D	 INNER JOIN EMPLOYEE E ON(D.DRAFT_WRITER = E.EMPL_NO)
+   					 INNER JOIN COMMON_TABLE CT ON(D.DRAFT_TYPE = CT.CT_TABLE)
+		<include refid="sameCondition"/>
+		) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<sql id="sameCondition">
+		<if test="detailSearch != null and simpleSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(simpleSearch.SearchWord)">
+					INNER JOIN AUTHL AL ON(D.DRAFT_NO = AL.DRAFT_NO AND AL.AUTHL_AUTHORID = #{simpleSearch.SearchWord})
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(simpleSearch.startDate)">
+					AND D.DRAFT_DATE BETWEEN TO_DATE(#{simpleSearch.startDate}, 'YY/MM/DD') AND TO_DATE(#{simpleSearch.endDate}, 'YY/MM/DD')+1
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(simpleSearch.SearchType)">
+					<choose>
+						<when test="simpleSearch.SearchType != '전체'">
+							AND D.DRAFT_PROGRESS = #{simpleSearch.SearchType}
+						</when>
+						<otherwise>
+							AND D.DRAFT_PROGRESS != '임시저장'
+						</otherwise>
+					</choose>
+					<if test="(simpleSearch.SearchType == '임시저장') and (@org.apache.commons.lang3.StringUtils@isNotBlank(simpleSearch.SearchWord))">
+						AND INSTR (D.DRAFT_WRITER, #{simpleSearch.searchWord}) > 0
+					</if>
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.draftNo)">
+					AND INSTR(D.DRAFT_NO, #{detailSearch.draftNo}) > 0
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.draftType)">
+					AND INSTR(D.DRAFT_TYPE, #{detailSearch.draftType}) > 0
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.writer.emplNm)">
+					AND INSTR(E.EMPL_NM, #{detailSearch.writer.emplNm}) > 0
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.draftTitle)">
+					AND INSTR(D.DRAFT_TITLE, #{detailSearch.draftTitle}) > 0
+				</if>
+		</if>
+		ORDER BY D.DRAFT_NO DESC
+	</sql>
+	<sql id="sameConditionForm">
+		<if test="detailSearch != null">
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.dfTitle)">
+				AND INSTR(DF_TITLE, #{detailSearch.dfTitle}) > 0
+			</if>
+		</if>
+	</sql>
+	<select id="selectTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(*)
+   		FROM
+    		DRAFT D	 INNER JOIN EMPLOYEE E ON(D.DRAFT_WRITER = E.EMPL_NO)
+   					 INNER JOIN COMMON_TABLE CT ON(D.DRAFT_TYPE = CT.CT_TABLE)
+		<include refid="sameCondition"/>
+	</select>
+	
+	<select id="selectDraft" parameterType="int" resultMap="draftMap">
+		SELECT 
+			D.DRAFT_NO, D.DRAFT_DATE,
+		    D.DRAFT_TITLE, D.DRAFT_TYPE,
+		    D.DRAFT_SECURITY, D.DRAFT_CONTENT,
+		    D.DRAFT_PROGRESS
+		    , D.DRAFT_CHIT_KND
+		    , D.DRAFT_WRITER, E.EMPL_NO AS "WRITER.emplNo", E.EMPL_NM AS "WRITER.emplNm", CT.CT_NM as "draftTypeNm"
+		    , (SELECT EMPL_NO FROM EMPLOYEE WHERE EMPL_NO = GETNEXTAUTHNO(D.DRAFT_NO)) AS "nextAuthorId"
+		    , NVL((SELECT EMPL_NM FROM EMPLOYEE WHERE EMPL_NO = GETNEXTAUTHNO(D.DRAFT_NO)),'-') AS "nextAuthor"
+		    , getLastAuthNo(D.DRAFT_NO) as "lastAuthorId"
+		FROM DRAFT D
+			 INNER JOIN EMPLOYEE E ON(D.DRAFT_WRITER = E.EMPL_NO)
+  			 INNER JOIN COMMON_TABLE CT ON(D.DRAFT_TYPE = CT.CT_TABLE)
+  		WHERE D.DRAFT_NO = #{draftNo}
+	</select>
+	
+	<select id="selectAuths" resultType="com.eg.vo.AuthVO" parameterType="int">
+		SELECT LCB_LINE_NO, AUTHOR_ID, AUTHOR_AUTH_TY_CODE, AUTHOR_ORDER
+		FROM AUTHOR
+		WHERE LCB_LINE_NO = ${lcbLineNo}
+	</select>
+
+	<select id="selectAuthls" resultType="com.eg.vo.AuthVO" parameterType="int">
+		SELECT 
+            A.DRAFT_NO as lcbLineNo
+            , A.AUTHL_AUTHORID as authorId
+            , A.SIGN_IMAGE
+            , E.EMPL_NM as authorNm
+            , P.PST_CODE as pstCode
+            , P.PST_NM as pstNm
+            , A.AUTHL_TYCD as authorAuthTyCode
+            , C.CT_NM as authorAuthTy
+            , A.AUTHL_ORDER as authorOrder
+            , AH.AH_AUTH_SE as "authHist.ahAuthSe"
+            , AH.AH_AUTH_TM as "authHist.ahAuthTm"
+            , AH.AH_RETURN_CN as "authHist.ahReturnCn"
+     	FROM AUTHL A 
+			INNER JOIN EMPLOYEE E ON(A.AUTHL_AUTHORID = E.EMPL_NO)
+            INNER JOIN COMMON_TABLE C ON (A.AUTHL_TYCD = C.CT_TABLE)
+            INNER JOIN POSITION P ON(E.PST_CODE = P.PST_CODE)
+            LEFT OUTER JOIN AUTH_HIST AH ON (A.DRAFT_NO = AH.DRAFT_NO AND A.AUTHL_AUTHORID = AH.AH_AUTHOR_ID)
+        WHERE A.DRAFT_NO = #{draftNo}
+        ORDER BY AUTHL_ORDER
+	</select>
+	
+	<select id="selectRef" resultType="com.eg.vo.AuthVO" parameterType="int">
+		SELECT 
+            DRAFT_NO as lcbLineNo
+            , DR_CCID as authorId
+            , E.EMPL_NM as authorNm
+            , P.PST_CODE as pstCode
+            , P.PST_NM as pstNm
+        FROM DRAFT_REF A INNER JOIN EMPLOYEE E ON(A.DR_CCID = E.EMPL_NO)
+            INNER JOIN POSITION P ON(E.PST_CODE = P.PST_CODE)
+        WHERE DRAFT_NO = ${draftNo}
+	</select>
+	
+	<select id="selectRec" resultType="com.eg.vo.AuthVO" parameterType="int">
+		SELECT 
+            DRAFT_NO as lcbLineNo
+            , RR_RCVERID as authorId
+            , E.EMPL_NM as authorNm
+            , P.PST_CODE as pstCode
+            , P.PST_NM as pstNm
+        FROM RECPTN_REFRN A INNER JOIN EMPLOYEE E ON(A.RR_RCVERID = E.EMPL_NO)
+            INNER JOIN POSITION P ON(E.PST_CODE = P.PST_CODE)
+        WHERE DRAFT_NO = ${draftNo}
+	</select>
+	
+	<resultMap type="com.eg.vo.DraftVO" id="draftMap" autoMapping="true">
+		<id column="DRAFT_NO" property="draftNo"/>
+		<collection property="authls" column="DRAFT_NO" ofType="com.eg.vo.AuthVO" select="selectAuthls" autoMapping="true"/>
+		<collection property="references" column="DRAFT_NO" ofType="com.eg.vo.AuthVO" select="selectRef" autoMapping="true"/>
+		<collection property="receivers" column="DRAFT_NO" ofType="com.eg.vo.AuthVO" select="selectRec" autoMapping="true"/>
+	</resultMap>
+	
+	<select id="selectTotalDraftFormList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*) 
+		FROM DRAFT_FORM
+		WHERE EMPL_NO = #{simpleSearch.searchWord} OR EMPL_NO = 9999999
+			<include refid="sameConditionForm"/>
+	</select>
+	
+	<select id="selectDraftFormList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.DraftFormVO">
+	    SELECT B.*
+		FROM (
+		SELECT A.*, ROWNUM RNUM
+		FROM (
+		    SELECT
+	   			DF_NO, DF_CONTENT, DF_USE,
+			    EMPL_NO,  DF_TITLE
+			FROM
+	   			DRAFT_FORM
+			WHERE
+				EMPL_NO IN (#{simpleSearch.searchWord}, '9999999')
+				<include refid="sameConditionForm"/>
+			ORDER BY DF_NO DESC
+		) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	
+	<select id="selectDraftForm" parameterType="Integer" resultType="DraftFormVO">
+		SELECT
+			DF_NO, DF_CONTENT, DF_USE,
+		    EMPL_NO,  DF_TITLE
+	    FROM
+   			DRAFT_FORM
+		WHERE
+			DF_NO=#{dfNo}
+	</select>
+
+	<select id="validForm" parameterType="java.util.HashMap" resultType="DraftFormVO">
+		SELECT
+			DF_NO, DF_CONTENT, DF_USE,
+		    EMPL_NO,  DF_TITLE
+	    FROM
+   			DRAFT_FORM
+		WHERE
+			DF_NO=#{dfNo}
+		AND
+			EMPL_NO=#{emplNo}
+	</select>
+	
+	<select id="selectMaxDraftFormNo" resultType="int">
+		SELECT NVL(MAX(DF_NO),1)+1
+		FROM DRAFT_FORM
+	</select>
+	
+	<insert id="insertDraftForm" parameterType="com.eg.vo.DraftFormVO">
+		INSERT INTO DRAFT_FORM DF (DF_NO, DF_CONTENT, DF_USE, EMPL_NO, DF_TITLE)
+       	VALUES (
+            #{dfNo, jdbcType=NUMERIC}, #{dfContent, jdbcType=CLOB}, #{dfUse, jdbcType=VARCHAR},
+            #{emplNo, jdbcType=NUMERIC}, #{dfTitle, jdbcType=VARCHAR}
+        )
+	</insert>
+	
+	<update id="updateDraftForm" parameterType="com.eg.vo.DraftFormVO">
+			UPDATE DRAFT_FORM 
+			SET  
+				DF_CONTENT = #{dfContent, jdbcType=CLOB},
+				DF_USE  = #{dfUse, jdbcType=VARCHAR},  
+				DF_TITLE  = #{dfTitle, jdbcType=VARCHAR}
+		    WHERE 
+		    	DF_NO = #{dfNo, jdbcType=NUMERIC}
+	</update>
+	
+	<delete id="deleteDraftForm" parameterType="com.eg.vo.DraftFormVO">
+		DELETE 
+		FROM
+			DRAFT_FORM
+		WHERE
+			DF_NO = #{dfNo}
+	</delete>
+	
+	<delete id="deleteDraftFormAll" parameterType="com.eg.vo.DraftFormVO">
+		DELETE 
+		FROM
+			DRAFT_FORM
+		WHERE
+			EMPL_NO = #{emplNo}
+		AND
+			DF_NO IN 
+		<foreach collection="deleteDfNo" item="dfNo" open="(" close=")" separator=",">
+			#{dfNo}
+		</foreach>
+	</delete>
+	
+	<update id="updateLineBox" parameterType="com.eg.vo.LineBoxVO">
+		MERGE INTO LINE_CSTDY_BX BX
+		USING DUAL
+		    ON (BX.LCB_LINE_NO = #{lcbLineNo, jdbcType=NUMERIC})
+		WHEN MATCHED THEN
+			UPDATE SET  
+				LCB_AUTHL_NM = #{lcbAuthlNm, jdbcType=VARCHAR}
+	 	WHEN NOT MATCHED THEN
+        	INSERT (LCB_LINE_NO,  LCB_AUTHL_NM,  LCB_EMPL)
+        	VALUES (
+	            #{lcbLineNo, jdbcType=NUMERIC},
+	            #{lcbAuthlNm, jdbcType=VARCHAR},
+	            #{lcbEmpl, jdbcType=NUMERIC}
+	        )
+	</update>
+
+	<select id="selectMaxNo" resultType="int">
+		SELECT NVL(MAX(LCB_LINE_NO),1)+1
+		FROM LINE_CSTDY_BX
+	</select>
+	
+	<update id="deleteAuth" parameterType="LineBoxVO">
+	        DELETE FROM AUTHOR 
+	        WHERE
+	        	LCB_LINE_NO = #{lcbLineNo,jdbcType=NUMERIC}
+	</update>
+	
+	<insert id="insertAuth" parameterType="LineBoxVO">
+		INSERT ALL
+		<foreach collection="auths" item="auth">
+			INTO AUTHOR VALUES(
+			#{lcbLineNo,jdbcType=NUMERIC},
+			#{auth.authorAuthTyCode,jdbcType=VARCHAR},
+			#{auth.authorOrder,jdbcType=NUMERIC}, 
+			#{auth.authorId,jdbcType=NUMERIC}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	<delete id="deleteLineBox" parameterType="com.eg.vo.LineBoxVO">
+		DELETE FROM LINE_CSTDY_BX
+		WHERE LCB_LINE_NO IN 
+		<foreach collection="delCodes" item="code" open="(" close=")" separator=",">
+		#{code,jdbcType=NUMERIC} 
+		</foreach>
+	</delete>
+	
+	<select id="selectMaxDraftNo" resultType="int">
+		SELECT NVL(MAX(DRAFT_NO),1)+1
+		FROM DRAFT
+	</select>
+	
+	<update id="updateDraft" parameterType="com.eg.vo.DraftVO">
+		UPDATE DRAFT SET  
+				DRAFT_TITLE = #{draftTitle, jdbcType=VARCHAR}
+				,DRAFT_TYPE = #{draftType, jdbcType=VARCHAR}
+				,DRAFT_SECURITY = #{draftSecurity, jdbcType=VARCHAR}
+				,DRAFT_CONTENT = #{draftContent, jdbcType=CLOB}
+				,DRAFT_PROGRESS = #{draftProgress, jdbcType=VARCHAR}
+				,DRAFT_CHIT_KND = #{draftChitKnd, jdbcType=VARCHAR}
+		WHERE DRAFT_NO = #{draftNo, jdbcType=NUMERIC}
+	</update>
+	
+	<insert id="insertDraft" parameterType="com.eg.vo.DraftVO">
+       	INSERT INTO DRAFT(
+        		DRAFT_NO, DRAFT_DATE, DRAFT_TITLE, DRAFT_TYPE, DRAFT_SECURITY,
+        		DRAFT_CONTENT, DRAFT_PROGRESS, DRAFT_CHIT_KND, DRAFT_WRITER
+        		)
+        	VALUES (
+	            #{draftNo, jdbcType=NUMERIC}, SYSDATE, #{draftTitle, jdbcType=VARCHAR}, #{draftType, jdbcType=VARCHAR}, #{draftSecurity, jdbcType=VARCHAR},
+        		#{draftContent, jdbcType=CLOB}, #{draftProgress, jdbcType=VARCHAR}, #{draftChitKnd, jdbcType=VARCHAR}, #{draftWriter, jdbcType=NUMERIC}
+	        )
+	</insert>
+	
+	<insert id="insertAllAuthl" parameterType="com.eg.vo.DraftVO">
+		INSERT ALL
+		<foreach collection="authls" item="auth">
+			INTO AUTHL VALUES(
+			#{draftNo,jdbcType=NUMERIC},
+			#{auth.authorId,jdbcType=NUMERIC},
+			#{auth.authorAuthTyCode,jdbcType=VARCHAR},
+			#{auth.authorOrder,jdbcType=NUMERIC},
+			#{auth.signImage,jdbcType=BLOB}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	<insert id="insertAllRef" parameterType="com.eg.vo.DraftVO">
+		INSERT ALL
+		<foreach collection="references" item="ref">
+			INTO DRAFT_REF VALUES(
+			#{draftNo,jdbcType=NUMERIC},
+			#{ref.authorId,jdbcType=NUMERIC}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	<insert id="insertAllRec" parameterType="com.eg.vo.DraftVO">
+		INSERT ALL
+		<foreach collection="receivers" item="rec">
+			INTO RECPTN_REFRN VALUES(
+			#{draftNo,jdbcType=NUMERIC},
+			#{rec.authorId,jdbcType=NUMERIC}
+			)
+		</foreach>
+		SELECT * FROM DUAL
+	</insert>
+	
+	<delete id="deleteAuthl" parameterType="Integer">
+		DELETE FROM AUTHL
+		WHERE DRAFT_NO = #{draftNo}
+	</delete>
+	<delete id="deleteRef" parameterType="Integer">
+		DELETE FROM DRAFT_REF
+		WHERE DRAFT_NO = #{draftNo}
+	</delete>
+	<delete id="deleteRec" parameterType="Integer">
+		DELETE FROM RECPTN_REFRN
+		WHERE DRAFT_NO = #{draftNo}
+	</delete>
+	
+	<insert id="insertAuthHist" parameterType="com.eg.vo.AuthHistVO">
+		MERGE INTO AUTH_HIST AL
+		USING DUAL
+		    ON (AL.DRAFT_NO = #{draftNo, jdbcType=NUMERIC} AND AH_AUTHOR_ID = #{ahAuthorId, jdbcType=VARCHAR})
+		WHEN MATCHED THEN
+			UPDATE SET  
+				AH_RETURN_CN = #{ahReturnCn, jdbcType=CLOB}
+			DELETE WHERE AH_AUTH_SE = '승인'
+	 	WHEN NOT MATCHED THEN
+			INSERT  (
+			    DRAFT_NO,    AH_AUTH_SE,    AH_AUTH_TM,    AH_AUTHOR_ID,    AH_RETURN_CN
+			) VALUES (
+				#{draftNo,jdbcType=NUMERIC}, #{ahAuthSe,jdbcType=VARCHAR}, TO_DATE(#{ahAuthTm,jdbcType=VARCHAR},'YYYY-MM-DD HH24:MI:SS'), #{ahAuthorId,jdbcType=NUMERIC} , #{ahReturnCn,jdbcType=CLOB}
+			)
+	</insert>
+	
+	<select id="selectAuthByEmplNo" parameterType="Integer" resultType="com.eg.vo.AuthVO">
+		SELECT EMPL_NO as authorId, EMPL_NM as authorNm, P.PST_NM
+		FROM EMPLOYEE E INNER JOIN POSITION P ON (E.PST_CODE = P.PST_CODE )
+        WHERE EMPL_NO=#{emplNo}
+	</select>
+	
+	<select id="selectSignImagePath" parameterType="Integer" resultType="String">
+      SELECT EMPL_SIGNIMAGE
+	  FROM EMPLOYEE
+  	  WHERE EMPL_NO = #{emplNo}
+   </select>
+	
+	<select id="selectMainDraft" parameterType="int" resultType="com.eg.vo.DraftVO">
+				SELECT A.*
+		FROM (
+		SELECT
+		    D.DRAFT_NO, TO_CHAR(D.DRAFT_DATE,'YYYY-MM-DD') DRAFT_DATE,
+		    D.DRAFT_TITLE, D.DRAFT_TYPE,
+		    D.DRAFT_SECURITY,
+		    D.DRAFT_PROGRESS,
+		    D.DRAFT_CHIT_KND, D.DRAFT_WRITER, E.EMPL_NM AS "WRITER.EMPLNM", CT.CT_NM as "draftTypeNm"
+		    , GETNEXTAUTHNO(D.DRAFT_NO) AS "nextAuthorId"
+		    , NVL((SELECT EMPL_NM FROM EMPLOYEE WHERE EMPL_NO = GETNEXTAUTHNO(D.DRAFT_NO)),'-') AS "nextAuthor"
+    	FROM
+    		DRAFT D	 INNER JOIN EMPLOYEE E ON(D.DRAFT_WRITER = E.EMPL_NO)
+   					 INNER JOIN COMMON_TABLE CT ON(D.DRAFT_TYPE = CT.CT_TABLE)
+		) A
+        WHERE A."nextAuthorId" = #{no}
+        AND A.DRAFT_PROGRESS = '결재중'
+	</select>
+</mapper>

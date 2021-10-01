@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.group.drive.dao.DriveDAO">
+	<select id="selectHistoryList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.HistoryVO">
+		SELECT B.*
+		FROM (
+		SELECT A.*, ROWNUM RNUM
+		FROM (
+		SELECT
+   			H.HIST_CODE, H.HIST_DE, H.HIST_IO, H.IP, H.COMMON_NO, H.FILE_SIZE, H.HIST_PATH 
+   			, CT.CT_NM as "histNm" 
+   			, E.EMPL_NM
+		FROM
+   			HISTORY H INNER JOIN COMMON_TABLE CT ON (H.HIST_IO = CT.CT_TABLE)
+   			INNER JOIN EMPLOYEE E ON (H.DRIVE_OPER = E.EMPL_NO) 
+		WHERE
+			H.COMMON_NO = #{detailSearch.commonNo}
+		) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY HIST_CODE DESC 
+	</select>
+	
+	<select id="selectTotalHistory" parameterType="com.eg.vo.PagingVO" resultType="Integer">
+		SELECT
+			COUNT(*)	
+		FROM
+		    HISTORY
+		WHERE
+			COMMON_NO = #{detailSearch.commonNo}
+	</select>
+	
+	<insert id="insertHistory" parameterType="com.eg.vo.HistoryVO">
+		<selectKey keyProperty="histCode" order="BEFORE" resultType="Integer">
+			SELECT NVL(MAX(HIST_CODE),0)+1 FROM HISTORY		
+		</selectKey>
+		INSERT INTO history (hist_code, hist_de, hist_io, ip, common_no, drive_oper, hist_path, file_size) 
+		VALUES (
+			 #{histCode},
+			 SYSDATE,
+			 #{histIo,jdbcType=VARCHAR},
+			 #{ip,jdbcType=VARCHAR}, 
+			 #{commonNo,jdbcType=VARCHAR}, 
+			 #{driveOper,jdbcType=NUMERIC}, 
+			 #{histPath,jdbcType=CLOB},
+			 #{fileSize,jdbcType=NUMERIC}
+			 )
+	</insert>
+	
+	
+</mapper>

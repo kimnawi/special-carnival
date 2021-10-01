@@ -1,0 +1,100 @@
+@charset "UTF-8";
+main{
+	width: 84%;
+	padding: 30px 0 0;
+}
+#top{
+	width: 100%;
+}
+#title{
+	margin: 30px;
+	font-size: 20px;
+	font-weight: bold;
+}
+hr{
+	margin: 5px 0px;
+}
+#chart_div{
+	overflow: auto;
+	max-width: 1600px;
+	max-height: 800px;
+}
+#chart_div table{
+	margin-top: 50px;
+	width: 95%;
+}
+#chart_div table td{
+	background: none;
+	padding: 0;
+	border-color: #D9D9D9;
+	border-width: 1.5px;
+}
+#bottom{
+	width: 100%;
+	position: fixed;
+	bottom: 75px;
+}
+.print {
+    display: inline-block;
+    text-decoration: none;
+    color: white;
+    padding: 1px 10px;
+    background: #3A4CA8;
+    border-radius: 3px;
+    margin-left: 10px; 
+}
+.google-visualization-orgchart-node{
+	vertical-align: top;
+}
+#chart_div table{
+	margin: 0;
+	width: 100%;
+}
+.emplNmA{
+	color: #4472C4;
+	cursor: pointer;
+}
+.emplNmA:hover{
+	color: #4472C4;
+	text-decoration: underline;
+}
+#chart_div td:has(.deptNmOrgan){
+	width: 150px;
+}
+.deptEmpl td{
+	font-size: 15px;
+}
+.deptEmpl td a{
+	font-size: 15px;
+}
+#info-table{
+/* 	width: 300px; */
+	border: 1px solid #3A4CA8;
+	background: white;
+	position: fixed;
+}
+#info-table tr:not(.emplDept) th{
+	color: #929292;
+	font-weight: normal;
+}
+#info-table th, #info-table td{
+	font-size: 15px;
+	padding: 3px 10px;
+}
+#info-table .emplDept th{
+	font-size: 18px;
+}
+.infoClose td{
+	text-align: right;
+	padding: 0;
+}
+.infoClose span{
+	cursor: pointer;
+}
+.infoClose span:hover{
+	font-weight: bold;
+	color: red;
+}
+.imageArea{
+	width: 100px;
+}

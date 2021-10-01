@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.dept.dao.DeptDAO">
+	<sql id="sameCondition">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptNm)">
+					AND INSTR(A.DEPT_NM, #{detailSearch.deptNm}) > 0
+				</if>
+			</if>
+		</trim>
+	</sql>
+	<sql id="sameCondition2">
+		<trim prefix="WHERE" prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptNm)">
+					AND INSTR(A.DEPT_NM, #{detailSearch.deptNm}) > 0
+				</if>
+			</if>	
+			<if test="detailSearch == null">
+				WHERE A.DEPT_USE = 'Yes'
+			</if>
+			<if test="detailSearch != null">
+				AND A.DEPT_USE = 'Yes'
+			</if>
+		</trim>
+	</sql>
+	
+	<select id="countDeptListY" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+			FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+			ON(A.DEPT_PARENT = B.DEPT_CODE)
+		<include refid="sameCondition" />
+		ORDER BY A.DEPT_USE DESC, A.DEPT_CODE
+	</select>
+	
+	<select id="deptListY" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.DeptVO">
+		WITH DEPTALL AS(
+			SELECT A.DEPT_CODE, A.DEPT_NM AS DEPT_NM, A.DEPT_USE, A.DEPT_PARENT, A.DEPT_LEADER, B.DEPT_NM AS DEPT_PNM
+			FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+			ON(A.DEPT_PARENT = B.DEPT_CODE)
+			<include refid="sameCondition" />
+			ORDER BY A.DEPT_USE DESC, A.DEPT_CODE
+		) 
+		SELECT A.*
+		FROM(
+			SELECT ROWNUM RNUM, DEPTALL.*
+			FROM DEPTALL
+		) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	
+	<select id="countDeptList" parameterType="com.eg.vo.PagingVO" resultType="int">
+		SELECT COUNT(*)
+			FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+			ON(A.DEPT_PARENT = B.DEPT_CODE)
+		<include refid="sameCondition2" />
+		ORDER BY A.DEPT_USE DESC, A.DEPT_CODE
+	</select>
+	
+	<select id="deptList" parameterType="com.eg.vo.PagingVO" resultType="com.eg.vo.DeptVO">
+		WITH DEPTALL AS(
+			SELECT A.DEPT_CODE, A.DEPT_NM , A.DEPT_USE, A.DEPT_PARENT, A.DEPT_LEADER, B.DEPT_NM AS DEPT_PNM
+			FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+			ON(A.DEPT_PARENT = B.DEPT_CODE)
+			<include refid="sameCondition2" />
+			ORDER BY A.DEPT_USE, A.DEPT_CODE
+		) 
+		SELECT A.*
+		FROM(
+			SELECT ROWNUM RNUM, DEPTALL.*
+			FROM DEPTALL
+		) A
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}		
+	</select>
+	
+	<update id="stopDept" parameterType="String">
+		UPDATE DEPARTMENT SET
+		DEPT_USE = 'No'
+		WHERE DEPT_CODE = #{deptCode}
+	</update>
+	
+	<update id="continueDept" parameterType="String">
+		UPDATE DEPARTMENT SET
+		DEPT_USE = 'Yes'
+		WHERE DEPT_CODE = #{deptCode}
+	</update>
+
+	<delete id="deleteDept" parameterType="String">
+		DELETE FROM DEPARTMENT
+		WHERE DEPT_CODE = #{deptCode}
+	</delete>
+	
+	<select id="selectDept" parameterType="String" resultType="com.eg.vo.DeptVO" >
+		SELECT A.DEPT_CODE, A.DEPT_NM , A.DEPT_USE, A.DEPT_PARENT, A.DEPT_LEADER, B.DEPT_NM AS DEPT_PNM
+		FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+		ON(A.DEPT_PARENT = B.DEPT_CODE)
+		WHERE A.DEPT_CODE = #{deptCode}
+	</select>
+	<!-- selectKey가 BEFORE에 하다보니 deptCode가 존재해서 MERGE가 UNMATCHED로 들어가서
+	여기서 사용안하는 deptPnm을 사용해서 새로 등록하는 deptCode명을 대체함-->
+	<insert id="insertDept" parameterType="com.eg.vo.DeptVO">
+		MERGE INTO DEPARTMENT A
+		USING DUAL
+		ON (A.DEPT_CODE = #{deptCode})
+		WHEN MATCHED THEN
+		UPDATE SET
+		DEPT_NM = #{deptNm},
+		DEPT_PARENT = #{deptParent}
+		WHEN NOT MATCHED THEN
+		<selectKey order="BEFORE" resultType="String" keyProperty="deptPnm">
+			<if test="deptParent != null and(deptParent eq '001'.toString())">
+				SELECT MAX(DEPT_CODE) + 100
+				FROM DEPARTMENT
+				WHERE DEPT_PARENT = #{deptParent}
+			</if>
+			<if test="deptParent != '001'">
+				SELECT NVL(MAX(DEPT_CODE),#{deptParent}) + 1
+				FROM DEPARTMENT
+				WHERE DEPT_PARENT = #{deptParent}		
+			</if>
+		</selectKey>
+		INSERT(DEPT_CODE, DEPT_NM, DEPT_PARENT, DEPT_LEADER)
+		VALUES(
+			#{deptPnm, jdbcType=VARCHAR},
+			#{deptNm, jdbcType=VARCHAR},
+			#{deptParent, jdbcType=VARCHAR},
+			#{deptLeader, jdbcType=VARCHAR}
+		)
+	</insert>
+	
+	<select id="selectDeptList" resultType="DeptVO">
+		SELECT A.DEPT_CODE, A.DEPT_NM, A.DEPT_USE, A.DEPT_PARENT, A.DEPT_LEADER, B.DEPT_NM AS DEPT_PNM
+		FROM DEPARTMENT A LEFT OUTER JOIN DEPARTMENT B
+		ON(A.DEPT_PARENT = B.DEPT_CODE)
+		ORDER BY A.DEPT_USE DESC, A.DEPT_CODE
+	</select>
+	<select id="selectDeptFancyList" parameterType="map" resultType="DeptVO">
+		SELECT DISTINCT A.DEPT_CODE
+		     , DECODE(COUNT(DISTINCT E.EMPL_NO), 0, DEPT_NM, DEPT_NM || '(' || COUNT(DISTINCT E.EMPL_NO) || ')') DEPT_NM
+		     , DEPT_USE, DEPT_PARENT, DEPT_LEADER
+		     , (SELECT DECODE(COUNT(*), 0, '1', '0') FROM DEPARTMENT B
+		        WHERE B.DEPT_PARENT = A.DEPT_CODE) LEAF
+		FROM DEPARTMENT A LEFT OUTER JOIN EMPLOYEE E
+		ON (A.DEPT_CODE = E.DEPT_CODE) LEFT OUTER JOIN RETIRE R
+		ON (E.EMPL_NO = R.EMPL_NO)
+		GROUP BY (A.DEPT_CODE, DEPT_NM, DEPT_USE, DEPT_PARENT, DEPT_LEADER, EMPL_RETIRE)
+		HAVING EMPL_RETIRE IS NULL
+		AND DEPT_USE = 'Yes'
+		<if test="deptParent == null">
+			AND A.DEPT_PARENT IS NULL
+		</if>
+		<if test="deptParent != null">
+			AND A.DEPT_PARENT = #{deptParent}
+		</if>
+		ORDER BY A.DEPT_CODE
+	</select>
+	<sql id="deptEmplSameCondition">
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+	    ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+	    ON (E.PST_CODE = P.PST_CODE) LEFT OUTER JOIN RETIRE R
+	    ON (E.EMPL_NO = R.EMPL_NO)
+	    WHERE EMPL_RETIRE IS NULL
+	    <if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.deptCode)">
+		    AND (E.DEPT_CODE = #{detailSearch.deptCode}
+		    <if test="detailSearch.deptCode != '001'.toString()">
+			    OR D.DEPT_PARENT = #{detailSearch.deptCode}
+		    </if>
+		    )
+	    </if>
+	</sql>
+	<select id="selectDeptEmplTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="deptEmplSameCondition"/>
+	</select>
+	<select id="selectDeptEmplList" parameterType="PagingVO" resultType="EmplVO">
+		SELECT B.*
+		FROM (
+			SELECT A.*, ROWNUM RNUM
+			FROM (
+			    SELECT E.EMPL_NO, EMPL_NM
+			    	 , E.DEPT_CODE, DEPT_NM "dept.deptNm"
+			    	 , E.PST_CODE, PST_NM "position.pstNm"
+			         , DECODE (E.EMPL_NO, DEPT_LEADER, '1', '0') DEPT_LEADER_AT
+			    <include refid="deptEmplSameCondition"/>
+			    ORDER BY E.EMPL_NO
+			    ) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<update id="updateDeptLeader" parameterType="DeptVO">
+		UPDATE DEPARTMENT
+		SET DEPT_LEADER = #{deptLeader, jdbcType=NUMERIC}
+		WHERE DEPT_CODE = #{deptCode, jdbcType=VARCHAR}
+	</update>
+	<resultMap type="DeptVO" id="deptMap" autoMapping="true">
+		<id property="deptCode" column="DEPT_CODE"/>
+		<collection property="emplList" ofType="EmplVO" autoMapping="true">
+			<id property="emplNo" column="EMPL_NO"/>
+		</collection>
+	</resultMap>
+	<select id="selectDeptOrganStatus" resultMap="deptMap">
+		WITH DEPTEMPL AS (
+		    SELECT E.EMPL_NO
+		         , EMPL_NM
+		         , E.DEPT_CODE
+		         , DECODE(DEPT_LEADER, E.EMPL_NO, '부서장', PST_NM) EMPL_PST
+		    FROM EMPLOYEE E LEFT OUTER JOIN RETIRE R
+		    ON (E.EMPL_NO = R.EMPL_NO) LEFT OUTER JOIN DEPARTMENT D
+		    ON (E.DEPT_CODE = D.DEPT_CODE) LEFT JOIN POSITION P
+		    ON (E.PST_CODE = P.PST_CODE)
+		    WHERE EMPL_RETIRE IS NULL
+		),
+		DEPTINFO AS(
+		    SELECT DISTINCT D.DEPT_CODE
+		         , DECODE(COUNT(E.EMPL_NO), 0, DEPT_NM, DEPT_NM || '(' || COUNT(E.EMPL_NO) || ')') DEPT_NM
+		         , DEPT_PARENT
+		         , COUNT(E.EMPL_NO) EMPL_CNT
+		    FROM DEPARTMENT D LEFT OUTER JOIN EMPLOYEE E
+		    ON (D.DEPT_CODE = E.DEPT_CODE) LEFT OUTER JOIN RETIRE R
+		    ON (E.EMPL_NO = R.EMPL_NO)
+		    WHERE DEPT_USE = 'Yes'
+		    AND EMPL_RETIRE IS NULL
+		    GROUP BY (D.DEPT_CODE, DEPT_NM, DEPT_PARENT)
+		)
+		SELECT DI.*, DE.*
+		FROM DEPTINFO DI LEFT OUTER JOIN DEPTEMPL DE
+		ON (DI.DEPT_CODE = DE.DEPT_CODE)
+		ORDER BY (CASE WHEN DE.EMPL_PST = '부서장' THEN 1 ELSE 2 END)
+	</select>
+</mapper>

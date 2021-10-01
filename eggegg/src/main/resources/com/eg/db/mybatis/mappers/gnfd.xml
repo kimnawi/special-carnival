@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.eg.gnfd.dao.GnfdDAO">
+	<select id="selectGnfdTypeList" resultType="GnfdTypeVO">
+		SELECT CT_TABLE, CT_NM
+		FROM COMMON_TABLE
+		WHERE SUBSTR(CT_TABLE, 1, 1) = 'C'
+	</select>
+	<sql id="sameConditionGnfdList">
+		FROM OFFICIAL_ORDER O LEFT OUTER JOIN EMPLOYEE E
+		ON (O.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN COMMON_TABLE CT
+		ON (GNFD_TYPE = CT_TABLE) LEFT OUTER JOIN DRAFT D
+		ON (O.DRAFT_NO = D.DRAFT_NO)
+		<trim prefix=" WHERE " prefixOverrides="AND">
+			<if test="detailSearch != null">
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNoArray)">
+					AND O.EMPL_NO IN
+					<foreach item="emplNo" collection="detailSearch.emplNoArray" open="(" separator=", " close=")">
+						#{emplNo}
+					</foreach>
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdType)">
+					AND GNFD_TYPE = #{detailSearch.gnfdType}
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdStartDe)">
+					AND GNFD_DE >= TO_DATE(#{detailSearch.gnfdStartDe}, 'YY/MM/DD')
+				</if>
+				<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdEndDe)">
+					<![CDATA[
+					AND GNFD_DE <= TO_DATE(#{detailSearch.gnfdEndDe}, 'YY/MM/DD')
+					]]>
+				</if>
+			</if>
+		</trim>
+	</sql>
+	<select id="selectGnfdTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		<include refid="sameConditionGnfdList"/>
+	</select>
+	<select id="selectGnfdList" resultType="OfficialOrderVO" parameterType="PagingVO">
+		SELECT B.*
+		FROM (
+		    SELECT ROWNUM RNUM, A.*
+		    FROM (
+		        SELECT GNFD_STDRDE
+		        	 , O.EMPL_NO, EMPL_NM "empl.emplNm"
+		        	 , TO_CHAR(GNFD_DE, 'YYYY-MM-DD') GNFD_DE
+		        	 , GNFD_TYPE, CT_NM "gnfd.ctNm"
+		             , O.DRAFT_NO, DRAFT_PROGRESS "draft.draftProgress"
+		             , GNFD_SUMRY
+				<include refid="sameConditionGnfdList"/>
+		        ORDER BY GNFD_STDRDE DESC
+		        ) A) B
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	<select id="selectGnfdDetail" parameterType="string" resultType="OfficialOrderVO">
+		SELECT O.EMPL_NO, EMPL_NM "empl.emplNm"
+		     , GNFD_STDRDE, TO_CHAR(GNFD_DE, 'YYYY-MM-DD') GNFD_DE
+		     , GNFD_SUMRY
+		     , DEPT_BNM
+		     , DEPT_ANM, DEPT_NM "dept.deptNm"
+		     , GNFD_BPOSITION
+		     , GNFD_APOSITION, PST_NM "position.pstNm"
+		     , GNFD_TYPE, CT.CT_NM "gnfd.ctNm"
+		     , EMPL_ENTRANCE "empl.emplEntrance"
+		     , C.CT_NM "empl.entrance.ctNm"
+		     , O.DRAFT_NO, DRAFT_PROGRESS "draft.draftProgress"
+		FROM OFFICIAL_ORDER O LEFT OUTER JOIN EMPLOYEE E
+		ON (O.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN DEPARTMENT D
+		ON (O.DEPT_ANM = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+		ON (O.GNFD_APOSITION = P.PST_CODE) LEFT OUTER JOIN COMMON_TABLE CT
+		ON (O.GNFD_TYPE = CT.CT_TABLE) LEFT OUTER JOIN COMMON_TABLE C
+		ON (EMPL_ENTRANCE = C.CT_TABLE) LEFT OUTER JOIN DRAFT D
+		ON (O.DRAFT_NO = D.DRAFT_NO)
+		WHERE GNFD_STDRDE = #{gnfdStdrde, jdbcType=VARCHAR}
+	</select>
+	<update id="updateGnfd" parameterType="OfficialOrderVO">
+		UPDATE OFFICIAL_ORDER
+		SET   GNFD_DE = TO_DATE(#{gnfdDe, jdbcType=DATE}, 'YYYY-MM-DD') 
+		    , GNFD_TYPE = #{gnfdType, jdbcType=VARCHAR}
+		    , DEPT_ANM = #{deptAnm, jdbcType=VARCHAR} 
+		    , GNFD_APOSITION = #{gnfdAposition, jdbcType=VARCHAR} 
+		    , GNFD_SUMRY = #{gnfdSumry, jdbcType=VARCHAR}
+		WHERE GNFD_STDRDE = #{gnfdStdrde, jdbcType=VARCHAR}
+	</update>
+	<delete id="deleteGnfd" parameterType="string">
+		DELETE FROM OFFICIAL_ORDER
+		WHERE GNFD_STDRDE = #{gnfdStdrde, jdbcType=VARCHAR}
+	</delete>
+	<insert id="insertGnfd" parameterType="OfficialOrderVO">
+		<selectKey keyProperty="gnfdStdrde" resultType="string" order="BEFORE">
+			SELECT TO_CHAR(SYSDATE, 'YY/MM/DD') || '-' || TO_CHAR(DECODE(MAX(SUBSTR(GNFD_STDRDE, 10)), NULL, 1, MAX(SUBSTR(GNFD_STDRDE, 10))+1)) GNFD_STDRDE
+			FROM OFFICIAL_ORDER
+			WHERE SUBSTR(GNFD_STDRDE, 1, 8) = TO_CHAR(SYSDATE, 'YY/MM/DD')
+		</selectKey>
+		INSERT INTO OFFICIAL_ORDER (EMPL_NO, GNFD_STDRDE
+		     , GNFD_DE, GNFD_SUMRY, DEPT_BNM, DEPT_ANM
+		     , GNFD_BPOSITION, GNFD_APOSITION, GNFD_TYPE)
+		SELECT E.EMPL_NO
+		     , #{gnfdStdrde}
+		     , TO_DATE(#{gnfdDe, jdbcType=DATE}, 'YYYY-MM-DD')
+		     , #{gnfdSumry, jdbcType=VARCHAR}
+		     , DEPT_NM
+		     , #{deptAnm, jdbcType=VARCHAR}
+		     , PST_NM
+		     , #{gnfdAposition, jdbcType=VARCHAR}
+		     , #{gnfdType, jdbcType=VARCHAR}
+		FROM EMPLOYEE E LEFT OUTER JOIN DEPARTMENT D
+		ON (E.DEPT_CODE = D.DEPT_CODE) LEFT OUTER JOIN POSITION P
+		ON (E.PST_CODE = P.PST_CODE)
+		WHERE E.EMPL_NO = #{emplNo, jdbcType=NUMERIC}
+	</insert>
+	<update id="updateDraftNo" parameterType="map">
+		UPDATE OFFICIAL_ORDER
+		SET DRAFT_NO = #{draftNo, jdbcType=NUMERIC}
+		WHERE GNFD_STDRDE = #{code, jdbcType=VARCHAR}
+	</update>
+	<select id="selectGnfdStatus" parameterType="PagingVO" resultType="OfficialOrderVO">
+		SELECT GNFD_STDRDE, TO_CHAR(GNFD_DE, 'YYYY-MM-DD') GNFD_DE
+		     , OO.EMPL_NO, EMPL_NM "empl.emplNm"
+		     , GNFD_TYPE, CT_NM "gnfd.ctNm"
+		     , GNFD_BPOSITION
+		     , GNFD_APOSITION, PST_NM "position.pstNm"
+		     , DEPT_BNM
+		     , DEPT_ANM, DEPT_NM "dept.deptNm"
+		     , GNFD_SUMRY
+		     , DRAFT_PROGRESS
+		FROM OFFICIAL_ORDER OO LEFT OUTER JOIN EMPLOYEE E
+		ON (OO.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN COMMON_TABLE CT
+		ON (GNFD_TYPE = CT_TABLE) LEFT OUTER JOIN POSITION P
+		ON (GNFD_APOSITION = P.PST_CODE) LEFT OUTER JOIN DEPARTMENT D
+		ON (DEPT_ANM = D.DEPT_CODE) LEFT OUTER JOIN DRAFT DR
+		ON (OO.DRAFT_NO = DR.DRAFT_NO)
+		WHERE DRAFT_PROGRESS = '결재완료'
+		<if test="detailSearch != null">
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdStartDe)">
+				AND GNFD_DE >= TO_DATE(#{detailSearch.gnfdStartDe}, 'YY/MM/DD') 
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdEndDe)">
+				<![CDATA[
+				AND GNFD_DE <= TO_DATE(#{detailSearch.gnfdEndDe}, 'YY/MM/DD')
+				]]>
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.emplNoArray)">
+				AND OO.EMPL_NO IN
+				<foreach item="emplNo" collection="detailSearch.emplNoArray" open="(" separator=", " close=")">
+					#{emplNo}
+				</foreach>
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdType)">
+				AND GNFD_TYPE = #{detailSearch.gnfdType}
+			</if>
+			<if test="@org.apache.commons.lang3.StringUtils@isNotBlank(detailSearch.gnfdSumry)">
+				AND INSTR(GNFD_SUMRY, #{detailSearch.gnfdSumry}) > 0
+			</if>
+		</if>
+		ORDER BY GNFD_STDRDE DESC
+	</select>
+	<select id="selectGnfdExcel" resultType="OfficialOrderVO">
+		SELECT GNFD_STDRDE, TO_CHAR(GNFD_DE, 'YYYY-MM-DD') GNFD_DE
+		     , OO.EMPL_NO, EMPL_NM "empl.emplNm"
+		     , GNFD_TYPE, CT_NM "gnfd.ctNm"
+		     , GNFD_BPOSITION
+		     , GNFD_APOSITION, PST_NM "position.pstNm"
+		     , DEPT_BNM
+		     , DEPT_ANM, DEPT_NM "dept.deptNm"
+		     , GNFD_SUMRY
+		     , DRAFT_PROGRESS
+		FROM OFFICIAL_ORDER OO LEFT OUTER JOIN EMPLOYEE E
+		ON (OO.EMPL_NO = E.EMPL_NO) LEFT OUTER JOIN COMMON_TABLE CT
+		ON (GNFD_TYPE = CT_TABLE) LEFT OUTER JOIN POSITION P
+		ON (GNFD_APOSITION = P.PST_CODE) LEFT OUTER JOIN DEPARTMENT D
+		ON (DEPT_ANM = D.DEPT_CODE) LEFT OUTER JOIN DRAFT DR
+		ON (OO.DRAFT_NO = DR.DRAFT_NO)
+		WHERE DRAFT_PROGRESS = '결재완료'
+	</select>
+	<select id="selectGnfdDraftAfter" resultType="OfficialOrderVO">
+		SELECT D.DRAFT_NO
+		     , EMPL_NO
+		     , TO_CHAR(GNFD_DE, 'YYYY-MM-DD') GNFD_DE
+		     , GNFD_APOSITION
+		     , DEPT_ANM
+		     , DRAFT_PROGRESS
+		FROM OFFICIAL_ORDER OO LEFT OUTER JOIN DRAFT D
+		ON (OO.DRAFT_NO = D.DRAFT_NO)
+		<![CDATA[
+		WHERE GNFD_DE <= SYSDATE
+		AND OO.DRAFT_NO IS NOT NULL
+		AND DRAFT_PROGRESS <> '반려'
+		]]>
+	</select>
+</mapper>

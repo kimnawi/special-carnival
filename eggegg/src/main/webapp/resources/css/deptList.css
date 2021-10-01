@@ -1,0 +1,269 @@
+@charset "UTF-8";
+table{
+	border-collapse: collapse;
+}
+td, th{
+	border: 1px solid #EAEAEA;
+	height: 40px;
+	padding: 0px 10px;
+	text-align: center;
+}
+tr{
+	height: 30px;
+}
+tfoot td{
+	border:none;
+}
+th{
+	background : #FCFCFE;
+}
+.checkAll, .checkbox{
+	width: 25px;
+}
+#th1{
+	width : 140px;
+}
+#th2{
+	width : 220px;
+}
+#th3{
+	width: 200px;
+}
+#th4{
+	width : 90px;
+}
+.td3{
+	text-align: center;
+}
+#pagingArea{
+	display:inline-block;
+}
+#searchUI{
+	margin-left : 395px;
+	margin-bottom : 5px;
+	display:inline-block;
+}
+h4{
+	display:inline-block;
+	margin : 0px;
+}
+.sc1{
+	width : 50px;
+}
+.sc2{
+	width : 90px;
+}
+main {
+	width: 84%;
+	padding: 30px 0 0;
+}
+.dropup {
+  position: relative;
+  display: inline-block;
+  border: 1px solid #767676;
+  border-radius: 3px;
+  margin-left: 5px;
+}
+hr{
+	margin: 5px 0px;
+}
+#title{
+	margin: 30px;
+	font-size: 20px;
+	font-weight: bold;
+}
+.dropup-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 151px;
+  border : 1px solid black;
+  bottom: 31px;
+  left: -1px;
+  z-index: 1;
+  font-size: 18px;
+}
+
+.dropup-content a {
+  color: black;
+  padding: 3px 5px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropup-content a:hover {background-color: #F1F1F8}
+
+.dropup:hover .dropup-content {
+  display: block;
+}
+
+.dropbtn {
+  color: black;
+  padding: 2px 5px;
+  border: none;
+}
+.red{
+	background : #FEE5E5;
+}
+#lll{
+	float:left;
+	width: 60%;
+	padding: 10px;
+}
+#lll #searchUI{
+	position: relative;
+}
+#lll #searchUI input[type=text]{
+	width: 250px;
+}
+textarea{
+	resize: none;
+	height:100%;
+}
+#form{
+	margin-top : 50px;
+	float: left;
+	border : 1px solid #EAEAEA;
+	padding : 10px;
+}
+#form input[type=text]{
+	width: 250px;
+	display: inline-block;
+	text-align: center;
+}
+#form input[type=date]{
+	width: 250px;
+	text-align: center;
+}
+#form table{
+	margin-top: 10px;
+}
+#form thead td{
+	border: none;
+	text-align: left;
+	vertical-align: top;
+}
+#form tfoot td{
+	text-align: inherit;
+	padding: 120px 0 0 0;
+}
+.tag:hover{
+	cursor: pointer;
+}
+select[name=deptParent]{
+}
+option{
+	height: 50px;
+	overflow: scroll;
+}
+/* 셀렉 */
+.wrap * {
+    margin: 0;
+    padding: 0;
+}
+.wrap ul li,
+.wrap ol li {
+    list-style: none;
+}
+.select_box {
+    margin: 0px;
+}
+.select_box .box {
+    display: inline-block;
+    position: relative;
+    width: 150px;
+}
+.select_box .box .select {
+    position: relative;
+    right: 50px;
+    border: 1px solid black;
+    border-radius: 2px;
+    box-sizing: border-box;
+    height: 33px;
+    width: 250px;
+    line-height: 35px;
+    font-size: 18px;
+    background-color: #fff;
+    cursor: pointer;
+    padding-left: 5px;
+    text-align: left;
+}
+.select_box .box .select:after {
+    content: '▼';
+    position: absolute;
+    top: 0;
+    right: 10px;
+    font-size: 0.6em;
+}
+.select_box.on .box .select:after {
+    content: '▲';
+}
+.select_box .box .list {
+    display: none;
+    overflow-y: auto;
+    position: absolute;
+    top: 32px;
+    right: -50px;
+    z-index: 10;
+    border: 1px solid black;
+    box-sizing: border-box;
+    padding: 5px;
+    width: 250px;
+    max-height: 200px;
+    background-color: #fff;
+    text-align: left;
+}
+.select_box .box .list::-webkit-scrollbar {
+    width: 10px;
+    height: 0;
+}
+.select_box .box .list::-webkit-scrollbar-button:start:decrement,
+.select_box .box .list::-webkit-scrollbar-button:end:increment {
+    display: block;
+    height: 0;
+}
+.select_box .box .list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, .05);
+    -webkit-border-radius: 10px;
+    border-radius: 10px;
+}
+.select_box .box .list::-webkit-scrollbar-thumb {
+    height: 50px;
+    width: 50px;
+    background: rgba(0, 0, 0, .2);
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+}
+.select_box .box .list>li {
+    box-sizing: border-box;
+    padding: 0 10px;
+    width: 100%;
+    height: 35px;
+    line-height: 35px;
+    cursor: pointer;
+}
+.select_box .box .list>li:hover {
+    background-color: #ccc;
+}
+.saveBtn{
+	width: 70px;
+	height: 33px;
+}
+/* 끝 */
+.formtd{
+	width : 153px;
+}
+#bottom{
+	width: 100%;
+	position: fixed;
+	bottom: 75px;
+}
+.sort{
+	font-size: 0.6em;
+}
+.selectDept{
+	color: #4472C4;
+}
+.selectDept:hover{
+	text-decoration: underline;
+}
